@@ -43,7 +43,7 @@ h2{font:600 20px/1.1 var(--display);margin:0;letter-spacing:.02em}
 .stack{display:flex;flex-direction:column;gap:14px;padding-block:14px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
 .card-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-select,input[type=text],input[type=number],input[type=search],input:not([type]),textarea{background:var(--sunk);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-height:38px;width:100%;font-size:16px}
+select,input[type=text],input[type=number],input[type=search],input[type=email],input[type=password],input:not([type]),textarea{background:var(--sunk);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-height:38px;width:100%;font-size:16px}
 select{width:auto;max-width:100%}
 textarea{min-height:64px;resize:vertical}
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}

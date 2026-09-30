@@ -118,6 +118,12 @@ function macroRow(name, cls, eat, plan, target, unit){
       <div class="eat" style="width:${pe}%;background:var(--${cls==="k"?"kcal":cls[0]})"></div></div>
     <span class="mval"><b>${unit==="g"?n1(eat):n0(eat)}</b> / ${unit==="g"?n1(plan):n0(plan)} <span class="muted${over?"":""}" style="${over?"color:var(--warn)":""}">of ${n0(target)}${unit}</span></span></div>`;
 }
+function leftToPlan(T,t){
+  const k=T.kcal-t.plan.kcal, p=T.protein-t.plan.p;
+  const kt = k>=0 ? `${n0(k)} kcal left to plan` : `${n0(-k)} kcal over target`;
+  const pt = p>0 ? `${n1(p)} g protein still to find` : `protein target covered`;
+  return kt+", "+pt+".";
+}
 function vToday(){
   const date=ui.date, d=day(date), T=S.settings.targets, t=totals(date), isToday=date===TODAY();
   const wf=workoutFor(date), prog=sessionProgress(date);
@@ -136,7 +142,7 @@ function vToday(){
    ${macroRow("Carbs","cc",t.eat.c,t.plan.c,T.carbs,"g")}
    ${macroRow("Fat","fc",t.eat.f,t.plan.f,T.fat,"g")}
   </div>
-  ${t.n? `<div class="small muted">${n0(Math.max(0,T.kcal-t.plan.kcal))} kcal and ${n1(Math.max(0,T.protein-t.plan.p))} g protein left to plan.</div>`:""}
+  ${t.n? `<div class="small muted">${leftToPlan(T,t)}</div>`:""}
   </section>`;
 
   // training
