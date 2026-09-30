@@ -144,6 +144,12 @@ window.Sync = (function () {
     st = blank(); persistNow(); user = null; emitChange(); emitStatus();
   }
 
-  return { all, get, put, remove, syncNow, status, init, signIn, signOut,
+  async function token() {
+    if (!sb) return null;
+    const { data } = await sb.auth.getSession();
+    return data && data.session ? data.session.access_token : null;
+  }
+
+  return { all, get, put, remove, syncNow, status, init, signIn, signOut, token,
     onChange: fn => changeFns.push(fn), onStatus: fn => statusFns.push(fn), get configured() { return configured; } };
 })();

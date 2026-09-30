@@ -109,15 +109,18 @@ const sortedBy = (obj, f=(x)=>x.name) => Object.values(obj).sort((a,b)=>String(f
 const tgtLine = it => { const e=S.ex[it.exId]||{}; return (it.sets||e.sets||"?")+" × "+(it.reps||e.reps||"?")+(Number(it.weight)?" · "+n1(it.weight)+" kg":"")+((it.rest||e.rest)?" · "+secs(it.rest||e.rest)+" rest":""); };
 
 /* ---------- views ---------- */
-function macroRow(name, cls, eat, plan, target, unit){
-  const pe=Math.min(100, target? eat/target*100:0), pp=Math.min(100, target? plan/target*100:0);
-  const over = target && plan>target*1.05;
-  return `<div class="mrow"><span class="mname ${cls}">${name}</span>
-    <div class="track" role="img" aria-label="${name}: ${n0(eat)} eaten, ${n0(plan)} planned of ${n0(target)}${unit}">
-      <div class="plan" style="width:${pp}%;background:var(--${cls==="k"?"kcal":cls[0]})"></div>
-      <div class="eat" style="width:${pe}%;background:var(--${cls==="k"?"kcal":cls[0]})"></div></div>
-    <span class="mval"><b>${unit==="g"?n1(eat):n0(eat)}</b> / ${unit==="g"?n1(plan):n0(plan)} <span class="muted${over?"":""}" style="${over?"color:var(--warn)":""}">of ${n0(target)}${unit}</span></span></div>`;
+const EMOJI=[[/chicken|turkey/,"🍗"],[/beef|mince|steak|lamb|pork/,"🥩"],[/salmon|cod|fish|tuna|prawn|shrimp|haddock/,"🐟"],[/egg/,"🥚"],[/yog|skyr|kefir/,"🥣"],[/whey|protein shake|shake|smoothie/,"🥤"],[/milk/,"🥛"],[/oat|porridge|granola|cereal/,"🥣"],[/rice/,"🍚"],[/pasta|spaghetti|noodle|lasagne|lasagna/,"🍝"],[/potato/,"🍠"],[/bread|toast|bagel|wrap|tortilla|pitta|pita/,"🍞"],[/banana/,"🍌"],[/blueberr|strawberr|raspberr|berr/,"🫐"],[/apple/,"🍎"],[/broccoli|greens|spinach|kale|veg/,"🥦"],[/salad/,"🥗"],[/peanut|nut butter|almond|cashew|nut/,"🥜"],[/olive oil|oil/,"🫒"],[/cheese|cottage|feta|halloumi/,"🧀"],[/coffee|latte|cappuccino|flat white|espresso/,"☕"],[/avocado/,"🥑"],[/curry|tikka|korma/,"🍛"],[/pizza/,"🍕"],[/burger/,"🍔"],[/soup|stew|chilli|chili|casserole/,"🍲"],[/croissant|pastry/,"🥐"],[/chocolate|brownie|cookie|cake/,"🍫"],[/taco|burrito|fajita/,"🌯"],[/bowl/,"🥗"]];
+function foodEmoji(x){ if(x&&x.emoji) return x.emoji; const n=String(x&&x.name||"").toLowerCase(); for(const [re,e] of EMOJI) if(re.test(n)) return e; return "🍽️"; }
+const PAT_COL={push:"var(--p)",pull:"var(--f)",legs:"#2E9C73",core:"var(--c)"};
+const LONGDOW=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const LONGMON=["January","February","March","April","May","June","July","August","September","October","November","December"];
+function longDate(s){ const d=parse(s); return LONGDOW[wd(s)]+" "+d.getDate()+" "+LONGMON[d.getMonth()]; }
+function dayTitle(s){ const t=TODAY(); if(s===t) return "Today"; if(s===addDays(t,-1)) return "Yesterday"; if(s===addDays(t,1)) return "Tomorrow"; return LONGDOW[wd(s)]; }
+function head({eyebrow, title, left="", right=""}){
+  return `<header class="top"><div class="top-row">${left}<span class="spacer"></span><span class="savedot" id="savestate"></span>${right}</div>
+  <div class="eyebrow">${eyebrow}</div><h1>${title}</h1></header>`;
 }
+function fmac(x){ return `<div class="fmac"><span class="kc">${n0(x.kcal)}<small>cal</small></span><span class="p">P ${n0(x.p)}</span><span class="c">C ${n0(x.c)}</span><span class="f">F ${n0(x.f)}</span></div>`; }
 function leftToPlan(T,t){
   const k=T.kcal-t.plan.kcal, p=T.protein-t.plan.p;
   const kt = k>=0 ? `${n0(k)} kcal left to plan` : `${n0(-k)} kcal over target`;
@@ -127,40 +130,52 @@ function leftToPlan(T,t){
 function vToday(){
   const date=ui.date, d=day(date), T=S.settings.targets, t=totals(date), isToday=date===TODAY();
   const wf=workoutFor(date), prog=sessionProgress(date);
-  let h=`<header class="top"><div class="top-row"><span class="brand">Recomp Planner</span><span class="spacer"></span><span class="savedot" id="savestate"></span></div>
-  <div class="top-row" style="margin-top:6px">
-    <button class="iconbtn" data-act="day" data-n="-1" aria-label="Previous day">${ICON.left}</button>
-    <h1 class="datetitle">${isToday?"<small>Today</small>":""}${fmtDate(date)}</h1>
-    <button class="iconbtn" data-act="day" data-n="1" aria-label="Next day">${ICON.right}</button></div>
-  ${isToday?"":`<div style="text-align:center;margin-top:4px"><button class="btn ghost" data-act="goToday">Back to today</button></div>`}</header>
-  <div class="stack">`;
+  let h=head({ eyebrow:longDate(date), title:dayTitle(date),
+    left:`<button class="iconbtn" data-act="day" data-n="-1" aria-label="Previous day">${ICON.left}</button>`,
+    right:`${isToday?"":`<button class="btn ghost" data-act="goToday">Today</button>`}<button class="iconbtn" data-act="day" data-n="1" aria-label="Next day">${ICON.right}</button>` });
+  h+=`<div class="stack">`;
   if(!Object.keys(S.ex).length && !Object.keys(S.foods).length) h+=welcomeCard();
-  h+=`<section class="card" aria-label="Nutrition"><div class="card-h"><h2>Fuel</h2><span class="spacer"></span><span class="legend"><span><i class="sw"></i>eaten</span><span><i class="sw pl"></i>planned</span></span></div>
-  <div class="macros">
-   ${macroRow("Kcal","k",t.eat.kcal,t.plan.kcal,T.kcal,"")}
-   ${macroRow("Protein","pc",t.eat.p,t.plan.p,T.protein,"g")}
-   ${macroRow("Carbs","cc",t.eat.c,t.plan.c,T.carbs,"g")}
-   ${macroRow("Fat","fc",t.eat.f,t.plan.f,T.fat,"g")}
-  </div>
-  ${t.n? `<div class="small muted">${leftToPlan(T,t)}</div>`:""}
+  const pe=Math.min(100,t.eat.kcal/T.kcal*100), pp=Math.min(100,t.plan.kcal/T.kcal*100);
+  const chip=(k,lab,v,tgt)=>`<span class="mchip ${v>tgt*1.08?"over":""}"><i style="background:var(--${k})"></i><b>${n0(v)}</b><span style="opacity:.75">/${n0(tgt)}g</span> ${lab}</span>`;
+  h+=`<section class="hero" aria-label="Nutrition">
+    <div class="big"><b>${n0(t.eat.kcal)}</b><span>/ ${n0(T.kcal)} cal</span></div>
+    <div class="line" role="img" aria-label="${n0(t.eat.kcal)} eaten, ${n0(t.plan.kcal)} planned of ${n0(T.kcal)} kcal"><i class="pl" style="width:${pp}%"></i><i class="eat" style="width:${pe}%"></i></div>
+    <div class="chips">${chip("p","Protein",t.eat.p,T.protein)}${chip("c","Carbs",t.eat.c,T.carbs)}${chip("f","Fat",t.eat.f,T.fat)}</div>
+    <div class="note ${t.n?"":"muted"}">${t.n? `${t.nEat<t.n?`${n0(t.plan.kcal)} planned in total. `:""}${leftToPlan(T,t)}` : `Nothing down for ${isToday?"today":"this day"} yet. Type what you ate below, or plan the day's meals.`}</div>
   </section>`;
 
+  // meals
+  h+=`<section class="sec" aria-label="Meals"><div class="sec-h"><h2>Meals</h2><span class="spacer"></span>${t.n?`<span class="pill">${t.nEat}/${t.n} eaten</span>`:""}</div>`;
+  for(const [slot,label] of SLOTS){
+    const items=(d.meals||[]).filter(m=>m.slot===slot);
+    const kc=items.reduce((a,m)=>a+macrosOf(m).kcal,0);
+    h+=`<div class="slot"><div class="slot-h"><span class="label">${label}${items.length?` · ${n0(kc)} cal`:""}</span><button class="btn ghost" data-act="addFood" data-slot="${slot}">+ Add</button></div>`;
+    for(const m of items){ const x=macrosOf(m);
+      h+=`<div class="frow ${m.eaten?"":"off"}"><div class="plate" aria-hidden="true">${foodEmoji(m)}</div>
+        <button class="body" data-act="mealItem" data-id="${esc(m.id)}"><div class="fname">${esc(m.name)}</div><div class="fqty">${n1(m.qty)} ${esc(m.unit)}${m.eaten?"":" · planned"}</div>${fmac(x)}</button>
+        <button class="check ${m.eaten?"on":""}" data-act="eat" data-id="${esc(m.id)}" aria-label="Mark ${esc(m.name)} eaten" aria-pressed="${!!m.eaten}">${ICON.check}</button></div>`;
+    }
+    h+=`</div>`;
+  }
+  h+=`<div class="setbtns"><button class="btn" data-act="copyMeals">Copy another day</button><button class="btn" data-act="importRecipe">Import a recipe</button>${t.n&&t.nEat<t.n?`<button class="btn" data-act="eatAll">Mark all eaten</button>`:""}</div></section>`;
+
   // training
-  const woOpts = [`<option value="" ${d.workout==null?"selected":""}>Weekly split${(()=>{const s=(S.settings.split||{})[wd(date)]; return s&&s!=="rest"&&S.wo[s]?": "+esc(S.wo[s].name):": Rest";})()}</option>`,
+  const woOpts = [`<option value="" ${d.workout==null?"selected":""}>Split: ${(()=>{const s=(S.settings.split||{})[wd(date)]; return s&&s!=="rest"&&S.wo[s]?esc(S.wo[s].name):"Rest";})()}</option>`,
     `<option value="rest" ${d.workout==="rest"?"selected":""}>Rest day</option>`]
     .concat(sortedBy(S.wo).map(w=>`<option value="${esc(w.id)}" ${d.workout===w.id?"selected":""}>${esc(w.name)}</option>`)).join("");
-  h+=`<section class="card" aria-label="Training"><div class="card-h"><h2>Train</h2>
+  h+=`<section class="sec" aria-label="Training"><div class="sec-h"><h2>Training</h2>
     ${prog?`<span class="pill ${prog.done&&prog.done>=prog.total?"done":""}">${prog.done}/${prog.total} sets</span>`:""}
     <span class="spacer"></span><select id="wsel" data-in="setWorkout" aria-label="Workout for this day">${woOpts}</select></div>`;
-  if(wf.id==="rest") h+=`<div class="empty">Rest day. Pick a workout above to train today anyway.</div>`;
+  if(wf.id==="rest") h+=`<div class="empty">Rest day. Pick a workout above to train anyway.</div>`;
   else if(!wf.w) h+=`<div class="empty">That workout has been deleted. Choose another above.</div>`;
   else{
-    h+=`<div class="small muted">${esc(wf.w.name)}${wf.w.notes?" · "+esc(wf.w.notes):""}</div>`;
+    if(wf.w.notes) h+=`<div class="small muted">${esc(wf.w.notes)}</div>`;
     for(const it of wf.w.items||[]){
       const e=S.ex[it.exId]; const rows=(d.log||{})[it.exId]; const n=rows?rows.length:(Number(it.sets)||0);
       const last=lastPerf(it.exId,date);
-      h+=`<div class="ex"><div class="ex-h"><b>${esc(e?e.name:"Removed exercise")}</b><span class="tgt">${esc(tgtLine(it))}</span></div>
-      ${last?`<div class="last">Last · ${fmtDate(last.date)} · <span class="num" style="font-size:14px">${esc(setsText(last.rows))}</span></div>`:""}
+      h+=`<div class="ex"><div class="ex-h"><div class="plate sm" style="color:${PAT_COL[(e||{}).pattern]||"var(--muted)"}" aria-hidden="true">${ICON.train}</div>
+        <div style="min-width:0"><div class="fname">${esc(e?e.name:"Removed exercise")}</div><div class="tgt">${esc(tgtLine(it))}</div>
+        ${last?`<div class="last">Last ${fmtDate(last.date)} · <span class="num">${esc(setsText(last.rows))}</span></div>`:""}</div></div>
       <div class="sets">`;
       for(let i=0;i<n;i++){ const r=rows&&rows[i]||{};
         h+=`<div class="setrow"><span class="n">${i+1}</span>
@@ -168,37 +183,20 @@ function vToday(){
         <label class="unitwrap"><input id="r-${esc(it.exId)}-${i}" inputmode="numeric" autocomplete="off" placeholder="${esc(firstRep(it.reps)||"–")}" value="${esc(r.r??"")}" data-in="setVal" data-ex="${esc(it.exId)}" data-i="${i}" data-k="r" aria-label="Set ${i+1} reps"><span>reps</span></label>
         <button class="tick ${r.done?"on":""}" data-act="tick" data-ex="${esc(it.exId)}" data-i="${i}" aria-label="Mark set ${i+1} done" aria-pressed="${!!r.done}">${ICON.check}</button></div>`;
       }
-      h+=`</div><div class="setbtns"><button class="btn ghost" data-act="addSet" data-ex="${esc(it.exId)}">+ Add set</button>${n>0?`<button class="btn ghost" style="color:var(--muted)" data-act="rmSet" data-ex="${esc(it.exId)}">Remove last set</button>`:""}</div></div>`;
+      h+=`</div><div class="setbtns"><button class="btn ghost" data-act="addSet" data-ex="${esc(it.exId)}">+ Set</button>${n>0?`<button class="btn ghost" style="color:var(--muted)" data-act="rmSet" data-ex="${esc(it.exId)}">Remove last</button>`:""}</div></div>`;
     }
     if(!(wf.w.items||[]).length) h+=`<div class="empty">This workout has no exercises yet. Add some under Train.</div>`;
   }
-  h+=`</section>`;
-
-  // meals
-  h+=`<section class="card" aria-label="Meals"><div class="card-h"><h2>Meals</h2><span class="spacer"></span>
-    ${t.n?`<span class="pill">${t.nEat}/${t.n} eaten</span>`:""}</div>`;
-  for(const [slot,label] of SLOTS){
-    const items=(d.meals||[]).filter(m=>m.slot===slot);
-    const kc=items.reduce((a,m)=>a+macrosOf(m).kcal,0);
-    h+=`<div class="slot"><div class="slot-h"><span class="label">${label}${items.length?` · <span class="num" style="font-size:13px">${n0(kc)} kcal</span>`:""}</span><button class="btn ghost" data-act="addFood" data-slot="${slot}">+ Add</button></div>`;
-    for(const m of items){ const x=macrosOf(m);
-      h+=`<div class="item ${m.eaten?"":"off"}"><button class="body" data-act="mealItem" data-id="${esc(m.id)}"><div class="nm">${esc(m.name)}</div><div class="sub">${n1(m.qty)} ${esc(m.unit)} · ${n1(x.p)} g protein</div></button>
-        <span class="kc">${n0(x.kcal)}</span>
-        <button class="tick ${m.eaten?"on":""}" data-act="eat" data-id="${esc(m.id)}" aria-label="Mark ${esc(m.name)} eaten" aria-pressed="${!!m.eaten}">${ICON.check}</button></div>`;
-    }
-    if(!items.length && slot==="breakfast" && !t.n) h+=`<div class="empty">Nothing planned yet. Add foods from your food list, or copy a previous day.</div>`;
-    h+=`</div>`;
-  }
-  h+=`<div class="setbtns" style="flex-wrap:wrap"><button class="btn" data-act="copyMeals">Copy another day</button>${t.n&&t.nEat<t.n?`<button class="btn" data-act="eatAll">Mark all eaten</button>`:""}</div></section>`;
-  h+=`</div>`;
+  h+=`</section></div>`;
   return h;
 }
 
 function vWeek(){
   const start=ui.week, T=S.settings.targets, split=S.settings.split||{};
-  let h=`<header class="top"><div class="top-row"><span class="brand">Recomp Planner</span><span class="spacer"></span><span class="savedot" id="savestate"></span></div>
-  <div class="top-row" style="margin-top:6px"><button class="iconbtn" data-act="week" data-n="-7" aria-label="Previous week">${ICON.left}</button>
-  <h1 class="datetitle"><small>Week of</small>${fmtDate(start)}</h1><button class="iconbtn" data-act="week" data-n="7" aria-label="Next week">${ICON.right}</button></div></header><div class="stack">`;
+  const wkTitle = start===monday(TODAY())?"This week":start===addDays(monday(TODAY()),-7)?"Last week":start===addDays(monday(TODAY()),7)?"Next week":"Week of "+fmtDate(start).slice(4);
+  let h=head({ eyebrow:fmtDate(start).slice(4)+" – "+fmtDate(addDays(start,6)).slice(4), title:wkTitle,
+    left:`<button class="iconbtn" data-act="week" data-n="-7" aria-label="Previous week">${ICON.left}</button>`,
+    right:`<button class="iconbtn" data-act="week" data-n="7" aria-label="Next week">${ICON.right}</button>` })+`<div class="stack">`;
   let sess=0, sessPlan=0, sumK=0, sumP=0, nd=0;
   let rows="";
   for(let i=0;i<7;i++){
@@ -210,7 +208,7 @@ function vWeek(){
       <span class="d"><b>${DOW[i]}</b><span>${parse(date).getDate()}</span></span>
       <span style="min-width:0"><span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${tag}${prog&&prog.done?`<span class="small muted">${prog.done}/${prog.total} sets</span>`:""}</span>
         <div class="mini" aria-hidden="true"><i class="pl" style="width:${Math.min(100,t.plan.kcal/T.kcal*100)}%"></i><i style="width:${Math.min(100,t.eat.kcal/T.kcal*100)}%"></i></div></span>
-      <span class="right" style="text-align:right;font-family:var(--display);font-variant-numeric:tabular-nums;line-height:1.2">
+      <span style="text-align:right;font-family:var(--display);font-variant-numeric:tabular-nums;line-height:1.25">
         <span style="font-size:17px">${t.n?n0(t.nEat?t.eat.kcal:t.plan.kcal):"–"}</span><span class="muted small"> kcal</span><br>
         <span class="small pc">${t.n?n1(t.nEat?t.eat.p:t.plan.p)+" g P":""}</span>${t.n&&!t.nEat?`<span class="small muted"> plan</span>`:""}</span></button>`;
   }
@@ -228,9 +226,9 @@ function vWeek(){
 }
 
 function vTrain(){
-  let h=`<header class="top"><div class="top-row"><span class="brand">Recomp Planner</span><span class="spacer"></span><span class="savedot" id="savestate"></span></div>
-  <div class="top-row" style="margin-top:6px"><h1 style="flex:1;margin:0">Train</h1><button class="btn primary" data-act="${ui.trainSeg==="workouts"?"newWorkout":"newEx"}">+ New ${ui.trainSeg==="workouts"?"workout":"exercise"}</button></div>
-  <div class="seg" style="margin-top:10px" role="tablist"><button class="${ui.trainSeg==="workouts"?"on":""}" data-act="seg" data-v="workouts">Workouts</button><button class="${ui.trainSeg==="exercises"?"on":""}" data-act="seg" data-v="exercises">Exercises</button></div></header><div class="stack">`;
+  let h=head({ eyebrow:"Workouts & exercises", title:"Train" })+`<div class="stack" style="gap:16px">
+  <div class="top-row"><div class="seg" style="flex:1" role="tablist"><button class="${ui.trainSeg==="workouts"?"on":""}" data-act="seg" data-v="workouts">Workouts</button><button class="${ui.trainSeg==="exercises"?"on":""}" data-act="seg" data-v="exercises">Exercises</button></div>
+  <button class="btn primary" data-act="${ui.trainSeg==="workouts"?"newWorkout":"newEx"}">+ New</button></div>`;
   if(ui.trainSeg==="workouts"){
     const ws=sortedBy(S.wo);
     if(!ws.length) h+=`<div class="card"><div class="empty">No workouts yet. Tap “New workout” and pick exercises from your list.</div></div>`;
@@ -252,8 +250,8 @@ function exList(filter, q, act){
 
 function vFood(){
   const T=S.settings.targets; const mk=T.protein*4+T.carbs*4+T.fat*9;
-  let h=`<header class="top"><div class="top-row"><span class="brand">Recomp Planner</span><span class="spacer"></span><span class="savedot" id="savestate"></span></div>
-  <div class="top-row" style="margin-top:6px"><h1 style="flex:1;margin:0">Food</h1><button class="btn primary" data-act="newFood">+ New food</button></div></header><div class="stack">
+  let h=head({ eyebrow:"Library & targets", title:"Food" })+`<div class="stack" style="gap:16px">
+  <div class="setbtns"><button class="btn primary" data-act="importRecipe">Import a recipe</button><button class="btn" data-act="newFood">+ New food</button></div>
   <section class="card"><div class="card-h"><h2>Daily targets</h2></div>
    <div class="grid4">
     <label class="field"><span class="label k">Kcal</span><input id="t-kcal" inputmode="numeric" value="${esc(T.kcal)}" data-in="target" data-k="kcal"></label>
@@ -273,7 +271,7 @@ function foodList(q, act, sel){
   const fs=sortedBy(S.foods).filter(f=>!q||f.name.toLowerCase().includes(q));
   if(!Object.keys(S.foods).length) return `<div class="card"><div class="empty">No foods yet. Add the things you actually eat, with macros from the packet.</div></div>`;
   if(!fs.length) return `<div class="empty">No foods match “${esc(q)}”.</div>`;
-  return `<div class="list">`+fs.map(f=>`<button class="li ${sel===f.id?"sel":""}" data-act="${act}" data-id="${esc(f.id)}"><span class="main"><div class="nm">${esc(f.name)} ${f.starter?`<span class="pill starter">starter</span>`:""}</div><div class="sub">per ${n1(f.size)} ${esc(f.unit)} · <span class="pc">P ${n1(f.p)}</span> · <span class="cc">C ${n1(f.c)}</span> · <span class="fc">F ${n1(f.f)}</span></div></span><span class="right"><span style="font-size:17px">${n0(f.kcal)}</span><span class="small muted"> kcal</span></span></button>`).join("")+`</div>`;
+  return `<div class="list">`+fs.map(f=>`<button class="li ${sel===f.id?"sel":""}" data-act="${act}" data-id="${esc(f.id)}"><span class="plate" aria-hidden="true">${foodEmoji(f)}</span><span class="main"><div class="nm">${esc(f.name)} ${f.starter?`<span class="pill starter">starter</span>`:""}${f.recipe?`<span class="pill starter" style="color:var(--accent)">recipe</span>`:""}</div><div class="sub">per ${n1(f.size)} ${esc(f.unit)} · <span class="pc">P ${n1(f.p)}</span> · <span class="cc">C ${n1(f.c)}</span> · <span class="fc">F ${n1(f.f)}</span></div></span><span class="right">${n0(f.kcal)}<span class="small muted" style="font-weight:500"> cal</span></span></button>`).join("")+`</div>`;
 }
 
 /* ---------- sheets ---------- */
@@ -291,7 +289,7 @@ function renderSheet(){
   let h="";
   if(s.type==="foodPick"){
     const f=S.foods[s.sel];
-    h+=sheetHead(`Add to ${SLOTS.find(x=>x[0]===s.slot)[1]}`, `<button class="btn ghost" data-act="newFoodFromPick">+ New</button>`);
+    h+=sheetHead(`Add to ${SLOTS.find(x=>x[0]===s.slot)[1]}`, `<button class="btn ghost" data-act="importRecipe">Recipe</button><button class="btn ghost" data-act="newFoodFromPick">+ New</button>`);
     h+=`<div class="sbody"><div class="seg">${SLOTS.map(([k,l])=>`<button class="${s.slot===k?"on":""}" data-act="pickSlot" data-v="${k}">${l}</button>`).join("")}</div>`;
     if(f){ h+=`<div class="card"><div class="card-h"><b style="font-weight:600">${esc(f.name)}</b></div>
       <label class="field"><span class="label">Amount</span><span class="unitwrap"><input id="fp-qty" inputmode="decimal" value="${esc(s.qty)}" data-in="pickQty"><span>${esc(f.unit)}</span></span></label>
@@ -299,6 +297,7 @@ function renderSheet(){
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fp-eaten" data-in="pickEaten" ${s.eaten?"checked":""} style="width:20px;height:20px"> Already eaten</label>
       <button class="btn primary block" data-act="confirmPick">Add ${esc(f.name)}</button></div>`; }
     h+=`<input type="search" id="fp-q" placeholder="Search your foods" value="${esc(s.q)}" data-in="pickQ" autocomplete="off">`;
+    if((s.q||"").trim().length>2) h+=`<button class="btn block" data-act="aiMealFromPick" style="text-align:left">✨ Work out “${esc(s.q.trim())}” with Claude</button>`;
     h+=foodList(s.q, "pickFood", s.sel)+`</div>`;
   }
   else if(s.type==="mealItem"){
@@ -321,7 +320,9 @@ function renderSheet(){
   else if(s.type==="food"){
     const d=s.draft;
     h+=sheetHead(s.id?"Edit food":"New food")+`<div class="sbody">
-     <label class="field"><span class="label">Name</span><input id="fd-name" value="${esc(d.name)}" data-in="draft" data-k="name" placeholder="e.g. Chicken breast, raw"></label>
+     <div class="grid2" style="grid-template-columns:64px 1fr"><label class="field"><span class="label">Icon</span><input id="fd-emoji" value="${esc(d.emoji||"")}" placeholder="${foodEmoji(d)}" data-in="draft" data-k="emoji" style="text-align:center;font-size:24px;padding:4px"></label>
+     <label class="field"><span class="label">Name</span><input id="fd-name" value="${esc(d.name)}" data-in="draft" data-k="name" placeholder="e.g. Chicken breast, raw"></label></div>
+     ${d.recipe?`<div class="banner">Imported recipe · makes ${esc(d.recipe.servings)} servings. Values below are per serving.<div class="small muted" style="margin-top:6px">${(d.recipe.items||[]).map(it=>esc(cap(it.name))+" "+n0(it.grams)+" g").join(" · ")}</div></div>`:""}
      <div class="grid2"><label class="field"><span class="label">Serving size</span><input id="fd-size" inputmode="decimal" value="${esc(d.size)}" data-in="draft" data-k="size" data-num="1"></label>
        <label class="field"><span class="label">Unit</span><select id="fd-unit" data-in="draft" data-k="unit">${UNITS.map(u=>`<option ${d.unit===u?"selected":""}>${u}</option>`).join("")}</select></label></div>
      <div class="label" style="margin-top:4px">Per serving</div>
@@ -372,6 +373,8 @@ function renderSheet(){
      <label class="field"><span class="label">Notes</span><input id="wd-notes" value="${esc(d.notes||"")}" data-in="draft" data-k="notes" placeholder="e.g. Phase 2, add 2.5 kg when top of range hit"></label>
      <div class="setbtns">${s.id?delBtn("wo:"+s.id,"delWorkout"):""}<span class="spacer"></span><button class="btn primary" data-act="saveWorkout">Save workout</button></div></div>`;
   }
+  else if(s.type==="aiInput"){ h+=renderAIInput(s); }
+  else if(s.type==="aiReview"){ h+=renderAIReview(s); }
   else if(s.type==="exPick"){
     h+=sheetHead("Add exercise", `<button class="btn ghost" data-act="newExFromPick">+ New</button>`)+`<div class="sbody">
      <input type="search" id="xp-q" placeholder="Search exercises" value="${esc(s.q)}" data-in="xpQ" autocomplete="off">
@@ -423,6 +426,85 @@ function accountCard(){
    <button class="btn danger" data-act="signOut">${ui.confirm==="signout"?(s.pending?`${s.pending} changes not synced. Tap again`:"Tap again to sign out"):"Sign out"}</button></div></section>`;
 }
 
+
+/* ---------- AI: recipe import + meal estimates (via /api/nutrition) ---------- */
+function guessSlot(){ const h=new Date().getHours(); return h<11?"breakfast":h<15?"lunch":h<17?"snacks":h<22?"dinner":"snacks"; }
+function scaled(it){ const k=it.g0>0? num(it.grams)/it.g0 : 1; return { kcal:it.kcal0*k, p:it.p0*k, c:it.c0*k, f:it.f0*k, fibre:(it.fibre0||0)*k }; }
+function aiTotals(s){ const t={kcal:0,p:0,c:0,f:0,fibre:0}; for(const it of s.items){ const x=scaled(it); for(const k in t) t[k]+=x[k]; } return t; }
+function cap(s){ s=String(s||""); return s.charAt(0).toUpperCase()+s.slice(1); }
+async function shrinkImage(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
+    const max=1568, s=Math.min(1, max/Math.max(img.naturalWidth,img.naturalHeight));
+    const c=document.createElement("canvas"); c.width=Math.round(img.naturalWidth*s); c.height=Math.round(img.naturalHeight*s);
+    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+    const full=c.toDataURL("image/jpeg",0.85);
+    const t=document.createElement("canvas"), ts=120/Math.max(c.width,c.height); t.width=Math.round(c.width*ts); t.height=Math.round(c.height*ts);
+    t.getContext("2d").drawImage(c,0,0,t.width,t.height);
+    return { media_type:"image/jpeg", data:full.split(",")[1], thumb:t.toDataURL("image/jpeg",0.7) };
+  } finally { URL.revokeObjectURL(url); }
+}
+async function runAI(s){
+  if(navigator.onLine===false){ s.error="You're offline. Recipe import needs a connection."; render(); return; }
+  s.busy=true; s.error=""; render();
+  try{
+    const tok=await Sync.token(); if(!tok) throw new Error("Sign in again to use this.");
+    const r=await fetch("api/nutrition",{ method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer "+tok },
+      body:JSON.stringify({ mode:s.mode, text:s.text||"", images:(s.images||[]).map(i=>({media_type:i.media_type,data:i.data})) }) });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(j.error||"That didn't work. Try again in a moment.");
+    if(!(j.items||[]).length) throw new Error("Couldn't find any foods in that. Try a clearer screenshot or paste the ingredients.");
+    const review={ type:"aiReview", mode:s.mode, date:s.date||ui.date, slot:s.slot||guessSlot(), eaten:s.mode==="meal",
+      title:j.title||"Recipe", emoji:j.emoji||"🍽️", servings:j.servings||1, servingsNote:j.servings_note||"", assumptions:j.assumptions||[],
+      items:j.items.map(it=>({ name:it.name, amount:it.amount, confidence:it.confidence, g0:+it.grams||0, grams:String(Math.round(+it.grams||0)),
+        kcal0:it.kcal, p0:it.p, c0:it.c, f0:it.f, fibre0:it.fibre||0 })) };
+    const i=ui.sheets.indexOf(s); if(i>=0) ui.sheets[i]=review; else ui.sheets.push(review);
+    s.busy=false; render(); const p=$("#panel"); if(p) p.scrollTop=0;
+  }catch(e){ s.busy=false; s.error=e.message||String(e); render(); }
+}
+function renderAIInput(s){
+  let h=sheetHead(s.mode==="recipe"?"Import a recipe":"Working it out")+`<div class="sbody">`;
+  if(s.mode==="recipe"){
+    h+=`<div class="note muted" style="font-size:14.5px">Screenshot the recipe in Instagram, including the ingredients (usually in the caption, so it may take two or three screenshots). Add them here, or paste the ingredients as text.</div>
+    <label class="btn block" for="ai-files" style="text-align:center;display:block;line-height:22px">${(s.images||[]).length?"Add more screenshots":"Choose screenshots"}</label>
+    <input type="file" id="ai-files" accept="image/*" multiple hidden data-in="aiFiles">`;
+    if((s.images||[]).length) h+=`<div class="chips">${s.images.map((im,i)=>`<span style="position:relative;display:inline-block"><img src="${im.thumb}" alt="Screenshot ${i+1}" style="height:84px;border-radius:12px;box-shadow:var(--shadow-sm);display:block"><button class="iconbtn" style="position:absolute;top:-8px;right:-8px;width:26px;height:26px" data-act="aiRmImg" data-i="${i}" aria-label="Remove screenshot ${i+1}">${ICON.close}</button></span>`).join("")}</div>`;
+    h+=`<textarea id="ai-text" data-in="aiText" placeholder="Or paste the caption or ingredient list">${esc(s.text||"")}</textarea>`;
+  } else {
+    h+=`<div class="bubble">${esc(s.text)}</div>`;
+  }
+  if(s.error) h+=`<div class="banner" style="color:var(--warn)">${esc(s.error)}</div>`;
+  h+=`<button class="btn primary block" data-act="aiRun" ${s.busy?"disabled":""}>${s.busy?(s.mode==="recipe"?"Reading the recipe…":"Estimating…"):(s.mode==="recipe"?"Work out nutrition":"Try again")}</button>
+    <div class="small muted">Claude estimates the ingredients, weights and macros. You can adjust any weight before saving.</div></div>`;
+  return h;
+}
+function renderAIReview(s){
+  const T=aiTotals(s), per={}; for(const k in T) per[k]=T[k]/(s.mode==="recipe"?Math.max(1,num(s.servings)):1);
+  let h=sheetHead(s.mode==="recipe"?"Check the recipe":"Check your meal")+`<div class="sbody">`;
+  if(s.mode==="recipe"){
+    h+=`<div class="grid2" style="grid-template-columns:64px 1fr"><label class="field"><span class="label">Icon</span><input id="ar-emoji" value="${esc(s.emoji)}" data-in="aiField" data-k="emoji" style="text-align:center;font-size:24px;padding:4px"></label>
+      <label class="field"><span class="label">Name</span><input id="ar-title" value="${esc(s.title)}" data-in="aiField" data-k="title"></label></div>
+      <label class="field"><span class="label">Servings the recipe makes</span><input id="ar-serv" inputmode="decimal" value="${esc(s.servings)}" data-in="aiField" data-k="servings" data-rerender="1"></label>
+      ${s.servingsNote?`<div class="small muted" style="margin-top:-8px">${esc(s.servingsNote)}</div>`:""}
+      <div class="card" style="gap:8px"><div class="label">Per serving</div>${preview(per)}<div class="small muted">Whole recipe ${n0(T.kcal)} kcal · ${n1(T.p)} g protein</div></div>`;
+  } else {
+    h+=`<div class="card" style="gap:8px"><div class="label">${esc(s.title)}</div>${preview(T)}</div>`;
+  }
+  h+=`<div class="label" style="margin-top:4px">${s.mode==="recipe"?"Ingredients":"Foods"} · change a weight to rescale</div>`;
+  s.items.forEach((it,i)=>{ const x=scaled(it);
+    h+=`<div class="frow" style="grid-template-columns:48px 1fr 96px;gap:12px"><div class="plate" style="width:48px;height:48px;font-size:22px" aria-hidden="true">${foodEmoji({name:it.name})}</div>
+      <div style="min-width:0"><div class="fname" style="font-size:16.5px">${esc(cap(it.name))}${it.confidence==="low"?` <span class="pill starter">guess</span>`:""}</div><div class="fqty">${esc(it.amount)}</div>${fmac(x)}</div>
+      <div style="display:flex;gap:6px;align-items:center"><label class="unitwrap" style="flex:1"><input id="ar-g-${i}" inputmode="decimal" value="${esc(it.grams)}" data-in="aiGrams" data-i="${i}" aria-label="Grams of ${esc(it.name)}" style="padding-right:22px;font-size:16px;padding-left:10px"><span>g</span></label>
+      <button class="iconbtn" style="width:30px;height:30px;box-shadow:none;background:var(--sunk)" data-act="aiRmItem" data-i="${i}" aria-label="Remove ${esc(it.name)}">${ICON.close}</button></div></div>`; });
+  if((s.assumptions||[]).length) h+=`<div class="small muted"><b style="font-weight:600">Assumed:</b> ${s.assumptions.map(esc).join(" · ")}</div>`;
+  h+=`<div class="field"><span class="label">${s.mode==="recipe"?"Add a serving to":"Add to"} ${esc(fmtDate(s.date))}</span><div class="seg">${SLOTS.map(([k,l])=>`<button class="${s.slot===k?"on":""}" data-act="aiSlot" data-v="${k}">${l}</button>`).join("")}</div></div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ar-eaten" data-in="aiEaten" ${s.eaten?"checked":""} style="width:20px;height:20px"> Already eaten</label>`;
+  if(s.mode==="recipe") h+=`<div class="setbtns"><button class="btn" data-act="aiSaveRecipe" data-add="0">Save recipe</button><span class="spacer"></span><button class="btn primary" data-act="aiSaveRecipe" data-add="1">Save + add 1 serving</button></div>`;
+  else h+=`<div class="setbtns"><button class="btn" data-act="aiSaveMealAsFood">Save as one food</button><span class="spacer"></span><button class="btn primary" data-act="aiAddMeal">Add ${s.items.length} ${s.items.length===1?"food":"foods"}</button></div>`;
+  return h+`</div>`;
+}
+
 /* ---------- render ---------- */
 function render(){
   const a=document.activeElement, fid=a&&a.id, sel=a&&("selectionStart" in a)?[a.selectionStart,a.selectionEnd]:null;
@@ -430,8 +512,9 @@ function render(){
   const st=Sync.status(), gate=!st.configured||!st.user;
   const views={today:vToday, week:vWeek, train:vTrain, food:vFood};
   $("#app").innerHTML= !st.configured ? vSetup() : !st.user ? vLogin() : (views[ui.tab]||vToday)();
-  document.querySelector("nav.tabs").hidden=gate; if(gate) ui.sheets=[];
-  $("#tabs").innerHTML=[["today","Today"],["week","Week"],["train","Train"],["food","Food"]].map(([k,l])=>`<button class="${ui.tab===k?"on":""}" data-act="tab" data-v="${k}" aria-current="${ui.tab===k?"page":"false"}">${ICON[k]}${l}</button>`).join("");
+  $("#dock").hidden=gate; if(gate) ui.sheets=[];
+  $("#askform").hidden = ui.tab!=="today"; document.body.classList.toggle("no-ask", ui.tab!=="today");
+  $("#tabs").innerHTML=[["today","Today"],["week","Week"],["train","Train"],["food","Food"]].map(([k,l])=>`<button class="${ui.tab===k?"on":""}" data-act="tab" data-v="${k}" aria-label="${l}" aria-current="${ui.tab===k?"page":"false"}">${ICON[k]}<span>${l}</span></button>`).join("");
   renderSheet(); $("#panel").scrollTop=panelScroll;
   if(fid){ const e=document.getElementById(fid); if(e){ e.focus({preventScroll:true}); try{ if(sel&&sel[0]!=null) e.setSelectionRange(sel[0],sel[1]); }catch(_){} } }
   status();
@@ -445,6 +528,26 @@ function ensureLog(date, exId){
 }
 function itemFor(date, exId){ const wf=workoutFor(date); return (wf.w&&wf.w.items||[]).find(x=>x.exId===exId)||{}; }
 const A = {
+  importRecipe(){ const s=top(); pushSheet({type:"aiInput", mode:"recipe", images:[], text:"", date:ui.date, slot:s&&s.type==="foodPick"?s.slot:guessSlot()}); },
+  aiRmImg(b){ top().images.splice(+b.dataset.i,1); render(); },
+  aiRun(){ const s=top(); if(s.mode==="recipe" && !(s.images||[]).length && !(s.text||"").trim()){ s.error="Add a screenshot or paste the ingredients first."; render(); return; } runAI(s); },
+  aiMealFromPick(){ const s=top(); const a={type:"aiInput", mode:"meal", text:s.q.trim(), date:s.date, slot:s.slot}; ui.sheets[ui.sheets.length-1]=a; runAI(a); },
+  aiRmItem(b){ top().items.splice(+b.dataset.i,1); render(); },
+  aiSlot(b){ top().slot=b.dataset.v; render(); },
+  aiSaveRecipe(b){ const s=top(), T=aiTotals(s), sv=Math.max(1,num(s.servings));
+    if(!s.items.length){ toast("There are no ingredients to save."); return; }
+    const id=rid("f"), r1=v=>Math.round(v*10)/10;
+    const food={ id, name:String(s.title||"Recipe").trim(), emoji:(s.emoji||"").trim()||foodEmoji({name:s.title}), size:1, unit:"serving",
+      kcal:Math.round(T.kcal/sv), p:r1(T.p/sv), c:r1(T.c/sv), f:r1(T.f/sv), fibre:r1(T.fibre/sv),
+      recipe:{ servings:sv, assumptions:s.assumptions||[], importedAt:TODAY(), items:s.items.map(it=>{ const x=scaled(it); return { name:it.name, amount:it.amount, grams:num(it.grams), kcal:Math.round(x.kcal), p:r1(x.p), c:r1(x.c), f:r1(x.f) }; }) } };
+    Sync.put("foods/"+id, food);
+    if(b.dataset.add==="1"){ const d=dayMut(s.date); d.meals.push({ id:rid("m"), slot:s.slot, foodId:id, name:food.name, emoji:food.emoji, size:1, unit:"serving", kcal:food.kcal, p:food.p, c:food.c, f:food.f, qty:1, eaten:!!s.eaten }); queueSave("days/"+s.date); }
+    ui.sheets=[]; loadS(); toast(b.dataset.add==="1"?`Saved ${food.name} and added a serving`:`Saved ${food.name} to your foods`); render(); },
+  aiAddMeal(){ const s=top(); const d=dayMut(s.date);
+    for(const it of s.items){ const g=num(it.grams); if(g<=0) continue; const x=scaled(it);
+      d.meals.push({ id:rid("m"), slot:s.slot, foodId:null, name:cap(it.name), emoji:foodEmoji({name:it.name}), size:g, unit:"g", kcal:Math.round(x.kcal), p:Math.round(x.p*10)/10, c:Math.round(x.c*10)/10, f:Math.round(x.f*10)/10, qty:g, eaten:!!s.eaten }); }
+    queueSave("days/"+s.date); ui.sheets=[]; toast(`Added to ${SLOTS.find(x=>x[0]===s.slot)[1].toLowerCase()}`); render(); },
+  aiSaveMealAsFood(){ const s=top(); s.mode="recipe"; s.servings=1; A.aiSaveRecipe({dataset:{add:"1"}}); },
   seedStarter(){ const T=window.STARTER; let n=0;
     T.exercises.forEach(e=>{ if(!S.ex[e.id]){ Sync.put("exercises/"+e.id, clone(e)); n++; } });
     T.foods.forEach(f=>{ if(!S.foods[f.id]){ Sync.put("foods/"+f.id, clone(f)); n++; } });
@@ -469,7 +572,7 @@ const A = {
   pickSlot(b){ top().slot=b.dataset.v; render(); },
   pickFood(b){ const s=top(), f=S.foods[b.dataset.id]; s.sel=f.id; s.qty=String(f.size); render(); $("#panel").scrollTop=0; },
   confirmPick(){ const s=top(), f=S.foods[s.sel]; const q=num(s.qty); if(!f||q<=0){ toast("Enter an amount above zero."); return; }
-    const d=dayMut(s.date); d.meals.push({ id:rid("m"), slot:s.slot, foodId:f.id, name:f.name, size:num(f.size)||1, unit:f.unit, kcal:num(f.kcal), p:num(f.p), c:num(f.c), f:num(f.f), qty:q, eaten:!!s.eaten });
+    const d=dayMut(s.date); d.meals.push({ id:rid("m"), slot:s.slot, foodId:f.id, name:f.name, emoji:foodEmoji(f), size:num(f.size)||1, unit:f.unit, kcal:num(f.kcal), p:num(f.p), c:num(f.c), f:num(f.f), qty:q, eaten:!!s.eaten });
     queueSave("days/"+s.date); s.sel=null; s.qty=""; s.q=""; toast(`Added ${f.name}`); render(); },
   newFoodFromPick(){ pushSheet({type:"food", id:null, draft:{name:top().q||"", size:100, unit:"g", kcal:"", p:"", c:"", f:""}, fromPick:true}); },
   mealItem(b){ pushSheet({type:"mealItem", date:ui.date, id:b.dataset.id}); },
@@ -488,6 +591,7 @@ const A = {
     if(!String(d.name||"").trim()){ toast("Give the food a name."); return; } if(num(d.size)<=0){ toast("Serving size needs to be above zero."); return; }
     const id=s.id||rid("f"); const body={ id, name:String(d.name).trim(), size:num(d.size), unit:d.unit||"g", kcal:num(d.kcal), p:num(d.p), c:num(d.c), f:num(d.f) };
     if(d.fibre!==""&&d.fibre!=null) body.fibre=num(d.fibre); if(d.sodium!==""&&d.sodium!=null) body.sodium=num(d.sodium);
+    if(d.emoji) body.emoji=String(d.emoji).trim(); if(d.recipe) body.recipe=d.recipe;
     if(await saveDoc("foods/"+id, body)){ S.foods[id]=body; ui.sheets.pop(); const under=top();
       if(s.fromPick && under && under.type==="foodPick"){ under.sel=id; under.qty=String(body.size); }
       toast("Food saved"); render(); } },
@@ -523,6 +627,13 @@ const A = {
 function addToWorkout(w, exId){ const e=S.ex[exId]; if(!e) return; w.draft.items=w.draft.items||[]; w.draft.items.push({ exId, sets:e.sets||3, reps:e.reps||"", weight:0, rest:e.rest||90 }); }
 
 const IN = {
+  async aiFiles(el, ev){ if(ev.type!=="change") return; const s=top(); const files=[...(el.files||[])].slice(0, 6-(s.images||[]).length);
+    for(const f of files){ try{ s.images.push(await shrinkImage(f)); }catch(e){ toast("Couldn't read one of those images."); } }
+    el.value=""; s.error=""; render(); },
+  aiText(el){ top().text=el.value; },
+  aiField(el, ev){ const s=top(); s[el.dataset.k]=el.value; if(el.dataset.rerender && ev.type==="change") render(); },
+  aiGrams(el, ev){ top().items[+el.dataset.i].grams=el.value; if(ev.type==="change") render(); },
+  aiEaten(el){ top().eaten=el.checked; },
   setWorkout(el, ev){ if(ev.type!=="change") return; const d=dayMut(ui.date); if(el.value==="") delete d.workout; else d.workout=el.value; queueSave("days/"+ui.date); render(); },
   setVal(el){ const {ex,i,k}=el.dataset; const rows=ensureLog(ui.date,ex); rows[+i][k]=el.value.trim(); queueSave("days/"+ui.date); },
   split(el, ev){ if(ev.type!=="change") return; S.settings.split=S.settings.split||{}; S.settings.split[el.dataset.i]=el.value; queueSave("settings/main"); render(); },
@@ -540,6 +651,13 @@ const IN = {
 document.addEventListener("click", ev=>{ const b=ev.target.closest("[data-act]"); if(!b||b.disabled) return; const f=A[b.dataset.act]; if(f){ ev.preventDefault(); f(b); } });
 ["input","change"].forEach(t=>document.addEventListener(t, ev=>{ const el=ev.target; const k=el.dataset&&el.dataset.in; if(k&&IN[k]){
   if(t==="change" && ["exQ","foodQ","pickQ","xpQ","setVal","pickQty","draft","witem","pickEaten"].includes(k)) return; IN[k](el, ev); } }));
+document.addEventListener("submit", ev=>{
+  if(ev.target.id!=="askform") return; ev.preventDefault();
+  const el=$("#ask"), q=el.value.trim(); if(!q) { el.focus(); return; }
+  el.value=""; el.blur(); $("#askgo").classList.remove("go");
+  pushSheet({type:"foodPick", date:ui.date, slot:guessSlot(), q, sel:null, qty:"", eaten:true});
+});
+document.addEventListener("input", ev=>{ if(ev.target.id==="ask") $("#askgo").classList.toggle("go", !!ev.target.value.trim()); });
 document.addEventListener("keydown", ev=>{ if(ev.key==="Escape"&&top()) popSheet(); });
 
 /* ---------- boot ---------- */

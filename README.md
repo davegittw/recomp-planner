@@ -6,6 +6,8 @@ A personal training and nutrition planner that installs on your iPhone home scre
 - **Week**: the split and eating plan side by side, sessions done, average kcal and protein eaten, and the default weekly split.
 - **Train**: your exercise database and workout templates (sets, reps, kg, rest per exercise).
 - **Food**: your food database and daily targets.
+- **Recipe import**: screenshot a recipe (Instagram or anywhere) or paste the ingredients; Claude works out the ingredients, weights and macros, you check and adjust the grams, and it's saved as a food with per-serving values.
+- **"What did you eat?"**: type something like "chicken wrap and a flat white". It searches your foods first, and can have Claude estimate anything that isn't in your library.
 
 Plain HTML/CSS/JS with no build step, hosted as a static site on Vercel.
 
@@ -27,7 +29,20 @@ Note: free Supabase projects pause after a week with no activity. Using the app 
 2. In Vercel (team *TW*, or your personal account) → *Add New Project* → import the repo. Framework preset: **Other**. No build command, output directory is the repo root.
 3. Deploy. You get a URL like `recomp-planner.vercel.app`.
 
-### 3. Install on the iPhone
+### 3. Recipe import (Anthropic API key)
+Recipe import and meal estimates call Claude from a small server function (`api/nutrition.js`), so they need an Anthropic API key. This is billed separately from a Claude subscription, pay-as-you-go.
+1. At console.anthropic.com, create an API key and add a little credit (£5 lasts a long time: each recipe with a few screenshots is roughly 1–3p).
+2. In Vercel → the project → Settings → Environment Variables, add:
+   - `ANTHROPIC_API_KEY` = the key
+   - `SUPABASE_URL` and `SUPABASE_ANON_KEY` = the same values as in `config.js` (the function uses them to check you're signed in, so nobody else can spend your credit)
+   - optional `ANTHROPIC_MODEL` to choose a different Claude model
+3. Redeploy.
+
+Everything else in the app works without this; only the two AI features need it, and they need a connection.
+
+**Using it with Instagram:** iPhone web apps can't appear in the share sheet, so screenshot the post (the ingredients are usually in the caption, so take two or three), then in the app tap *Import a recipe* → *Choose screenshots*. Pasting the caption text works too.
+
+### 4. Install on the iPhone
 1. Open the Vercel URL in **Safari**.
 2. Share button → **Add to Home Screen** → Add.
 3. Open it from the home screen icon (not from Safari), and sign in once.
@@ -43,7 +58,7 @@ One table, `records`, with one row per document:
 | kind | id | what's in `data` |
 |---|---|---|
 | `exercises` | `x-…` | name, pattern (push/pull/legs/core), muscles, equipment, default sets/reps/rest, notes |
-| `foods` | `f-…` | name, serving size + unit, kcal, protein, carbs, fat, optional fibre (g) and sodium (mg), all per serving |
+| `foods` | `f-…` | name, icon, serving size + unit, kcal, protein, carbs, fat, optional fibre (g) and sodium (mg), all per serving; imported recipes also keep their ingredient list |
 | `workouts` | `w-…` | name, type, notes, items (exercise, sets, reps, kg, rest) |
 | `days` | `YYYY-MM-DD` | chosen workout (or the split default), meals (food snapshot + amount + eaten), set log per exercise |
 | `settings` | `main` | daily targets and the weekly split |

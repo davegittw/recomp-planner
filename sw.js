@@ -1,5 +1,5 @@
 // App-shell cache so the app opens with no signal. Bump VERSION on every release.
-const VERSION = "recomp-v1";
+const VERSION = "recomp-v2";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "sync.js", "seed.js", "config.js", "vendor/supabase.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/apple-touch-icon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });

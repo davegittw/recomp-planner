@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Recomp Planner</title>
 <meta name="description" content="Personal training and nutrition planner">
-<meta name="theme-color" content="#E9ECEF" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#101316" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#FAF7F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141211" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Recomp">
@@ -16,13 +16,19 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Archivo:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app"></div>
 <div id="sheet" hidden><div class="scrim" data-act="closeSheet"></div><div class="panel" id="panel"></div></div>
-<nav class="tabs" hidden><div class="in" id="tabs"></div></nav>
+<div class="dock" id="dock" hidden><div class="in">
+  <form class="ask" id="askform" autocomplete="off" novalidate>
+    <input id="ask" type="text" enterkeyhint="send" placeholder="What did you eat?" aria-label="What did you eat?">
+    <button type="submit" id="askgo" aria-label="Find or estimate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/></svg></button>
+  </form>
+  <nav class="tabs" aria-label="Sections"><div class="tin" id="tabs"></div></nav>
+</div></div>
 <div id="toast" hidden></div>
 <script src="config.js"></script>
 <script src="vendor/supabase.js"></script>
