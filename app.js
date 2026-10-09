@@ -278,14 +278,27 @@ function foodList(q, act, sel){
 const top = () => ui.sheets[ui.sheets.length-1];
 function pushSheet(s){ ui.sheets.push(s); ui.confirm=null; render(); requestAnimationFrame(()=>{ const p=$("#panel"); if(p) p.scrollTop=0; }); }
 function popSheet(){ ui.sheets.pop(); ui.confirm=null; render(); }
-function sheetHead(title, right=""){ return `<div class="sh"><button class="iconbtn" data-act="closeSheet" aria-label="Close">${ICON.close}</button><h2>${title}</h2>${right}</div>`; }
+function sheetHead(title, right=""){ const back=ui.sheets.length>1;
+  return `<div class="sh"><div class="grab" aria-hidden="true"></div><button class="iconbtn" data-act="closeSheet" aria-label="${back?"Back":"Close"}">${back?ICON.left:ICON.close}</button><h2>${title}</h2>${right}</div>`; }
 function preview(m){ return `<div class="preview"><span class="k"><b>${n0(m.kcal)}</b> kcal</span><span class="pc"><b>${n1(m.p)}</b> g P</span><span class="cc"><b>${n1(m.c)}</b> g C</span><span class="fc"><b>${n1(m.f)}</b> g F</span></div>`; }
 function delBtn(key, act){ return `<button class="btn danger" data-act="${act}">${ui.confirm===key?"Tap again to delete":"Delete"}</button>`; }
 
+let sheetDepth=0, closingTimer=null;
 function renderSheet(){
-  const s=top(), el=$("#sheet"), p=$("#panel");
-  if(!s){ el.hidden=true; p.innerHTML=""; document.body.style.overflow=""; return; }
-  el.hidden=false; document.body.style.overflow="hidden";
+  const s=top(), el=$("#sheet"), p=$("#panel"), depth=ui.sheets.length, prev=sheetDepth;
+  sheetDepth=depth;
+  if(!s){
+    document.body.style.overflow="";
+    if(el.hidden || prev===0){ el.hidden=true; p.innerHTML=""; return; }
+    // slide the sheet away, then clear it
+    el.classList.remove("opening"); el.classList.add("closing"); p.style.transform="";
+    clearTimeout(closingTimer); closingTimer=setTimeout(()=>{ if(!ui.sheets.length){ el.hidden=true; p.innerHTML=""; } el.classList.remove("closing"); }, motionMs(240));
+    return;
+  }
+  clearTimeout(closingTimer); el.classList.remove("closing");
+  if(el.hidden || prev===0){ el.hidden=false; el.classList.remove("opening"); void el.offsetWidth; el.classList.add("opening"); }
+  else if(depth!==prev){ p.classList.remove("push","pop"); void p.offsetWidth; p.classList.add(depth>prev?"push":"pop"); }
+  document.body.style.overflow="hidden";
   let h="";
   if(s.type==="pick"){ h+=renderPick(s); }
   else if(s.type==="list"){ h+=renderList(s); }
@@ -591,11 +604,11 @@ const A = {
     loadS(); toast(n?`Added ${n} starter items. Edit or delete any of them.`:"Starter set is already in."); render(); },
   async syncNow(){ await Sync.syncNow(); const s=Sync.status(); toast(s.error||"Up to date"); },
   async signOut(){ if(ui.confirm!=="signout"){ ui.confirm="signout"; render(); return; } ui.confirm=null; await Sync.signOut(); ui.tab="today"; render(); },
-  tab(b){ ui.confirm=null; ui.tab=b.dataset.v; lsSet("rp-tab",ui.tab); ui.sheets=[]; render(); window.scrollTo(0,0); },
-  day(b){ ui.date=addDays(ui.date,Number(b.dataset.n)); render(); },
+  tab(b){ if(ui.tab===b.dataset.v){ window.scrollTo({top:0,behavior:"smooth"}); return; } ui.confirm=null; ui.tab=b.dataset.v; lsSet("rp-tab",ui.tab); ui.sheets=[]; render(); window.scrollTo(0,0); fadeApp(); },
+  day(b){ ui.date=addDays(ui.date,Number(b.dataset.n)); render(); fadeApp(Number(b.dataset.n)>0?"next":"prev"); },
   goToday(){ ui.date=TODAY(); render(); },
-  week(b){ ui.week=addDays(ui.week,Number(b.dataset.n)); render(); },
-  openDay(b){ ui.date=b.dataset.date; ui.tab="today"; lsSet("rp-tab","today"); render(); window.scrollTo(0,0); },
+  week(b){ ui.week=addDays(ui.week,Number(b.dataset.n)); render(); fadeApp(Number(b.dataset.n)>0?"next":"prev"); },
+  openDay(b){ ui.date=b.dataset.date; ui.tab="today"; lsSet("rp-tab","today"); render(); window.scrollTo(0,0); fadeApp(); },
   seg(b){ ui.trainSeg=b.dataset.v; lsSet("rp-seg",ui.trainSeg); render(); },
   exFilter(b){ ui.exFilter=b.dataset.v; render(); },
   tick(b){ const {ex,i}=b.dataset, rows=ensureLog(ui.date,ex), r=rows[+i], it=itemFor(ui.date,ex);
@@ -702,6 +715,37 @@ document.addEventListener("submit", ev=>{
 document.addEventListener("input", ev=>{ if(ev.target.id==="ask") $("#askgo").classList.toggle("go", !!ev.target.value.trim()); });
 document.addEventListener("keydown", ev=>{ if(ev.key==="Escape"&&top()) popSheet(); });
 
+/* ---------- app feel: motion, swipe to dismiss ---------- */
+const reduceMotion=()=>{ try{ return matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){ return false; } };
+function motionMs(ms){ return reduceMotion()?0:ms; }
+function fadeApp(kind){ const el=$("#app"); el.classList.remove("fade","next","prev"); void el.offsetWidth; el.classList.add("fade"); if(kind) el.classList.add(kind); }
+(function swipeToDismiss(){
+  const panel=$("#panel"); let y0=0, t0=0, dy=0, active=false, decided=false;
+  panel.addEventListener("touchstart", e=>{
+    if(e.touches.length!==1) return;
+    const t=e.target, onHead=!!t.closest(".sh");
+    if(t.closest("input,select,textarea")) { active=false; return; }
+    if(!onHead && panel.scrollTop>0) { active=false; return; }
+    y0=e.touches[0].clientY; t0=Date.now(); dy=0; active=true; decided=false;
+  }, {passive:true});
+  panel.addEventListener("touchmove", e=>{
+    if(!active) return;
+    dy=e.touches[0].clientY-y0;
+    if(!decided){ if(Math.abs(dy)<6) return; decided=true; if(dy<0){ active=false; return; } }
+    if(dy>0){ e.preventDefault(); panel.style.transition="none"; panel.style.transform=`translateY(${dy}px)`; $("#sheet .scrim").style.opacity=String(Math.max(0.2,1-dy/500)); }
+  }, {passive:false});
+  const end=()=>{
+    if(!active) return; active=false;
+    const v=dy/Math.max(1,Date.now()-t0), go=dy>120 || (dy>40 && v>0.55);
+    panel.style.transition=""; $("#sheet .scrim").style.opacity="";
+    if(go){
+      if(ui.sheets.length>1){ panel.style.transform=""; popSheet(); }
+      else { panel.style.transform=`translateY(${dy}px)`; requestAnimationFrame(()=>{ panel.style.transform=""; ui.sheets=[]; ui.confirm=null; render(); }); }
+    } else panel.style.transform="";
+  };
+  panel.addEventListener("touchend", end); panel.addEventListener("touchcancel", end);
+})();
+
 /* ---------- boot ---------- */
 Sync.onChange(()=>{ loadS(); render(); });
 Sync.onStatus(s=>{ status(); const was=authed; authed=!!s.user; if(was!==authed){ loadS(); render(); } });
@@ -710,6 +754,7 @@ let authed=false;
   loadS();
   try{ await Sync.init(); }catch(e){ console.error(e); }
   authed=!!Sync.status().user; loadS(); render();
+  requestAnimationFrame(()=>{ const sp=$("#splash"); if(sp){ sp.classList.add("gone"); setTimeout(()=>sp.remove(),300); } });
   const idle=window.requestIdleCallback||(f=>setTimeout(f,1500)); idle(()=>Ing.loadFull().catch(()=>{}));
 })();
 if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});

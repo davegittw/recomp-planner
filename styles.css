@@ -200,7 +200,7 @@ nav.tabs button:not(.on) span{display:none}
 #sheet{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;justify-content:flex-end}
 #sheet .scrim{position:absolute;inset:0;background:rgba(40,25,15,.28);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
 #sheet .panel{position:relative;background:var(--bg);border-radius:28px 28px 0 0;max-height:calc(100% - 24px - env(safe-area-inset-top,0px));overflow:auto;padding:0 20px calc(20px + env(safe-area-inset-bottom,0px));max-width:560px;width:100%;margin:0 auto;-webkit-overflow-scrolling:touch;box-shadow:0 -10px 40px -10px rgba(0,0,0,.25)}
-#sheet .sh{position:sticky;top:0;background:var(--bg);display:flex;align-items:center;gap:10px;padding:16px 0 12px;z-index:1;margin-bottom:6px}
+#sheet .sh{position:sticky;top:0;background:var(--bg);display:flex;align-items:center;gap:10px;padding:22px 0 12px;z-index:1;margin-bottom:6px}
 #sheet .sh h2{flex:1;min-width:0}
 .sbody{display:flex;flex-direction:column;gap:14px}
 .preview{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--display);font-size:15px;font-variant-numeric:tabular-nums}
@@ -218,6 +218,43 @@ nav.tabs button:not(.on) span{display:none}
 .iname{border:0;background:none;padding:0;text-align:left;font:400 17px/1.25 var(--display);color:var(--ink);display:inline}
 .ictl{display:grid;grid-template-columns:84px 1fr 34px;gap:8px;align-items:center;margin-top:8px}
 .ictl input{background:var(--surface);box-shadow:var(--shadow-sm);border-radius:12px;padding:8px 10px;min-height:40px;font:500 16px var(--display);font-variant-numeric:tabular-nums}
-.ictl select{width:100%;min-height:40px;font-size:15px;border-radius:12px;padding-inline:10px 26px}
+.ictl select{width:100%;min-height:40px;font-size:16px;border-radius:12px;padding-inline:10px 26px}
 .ictl .iconbtn{width:34px;height:34px;box-shadow:none;background:var(--sunk)}
 .card .ictl{grid-template-columns:110px 1fr}
+
+/* ---------- app feel ---------- */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+button,.li,.wk,label{-webkit-tap-highlight-color:transparent}
+button,.li,.wk,.chip,.check,.tick{transition:transform .12s ease,opacity .12s ease,background-color .15s ease}
+button:active:not(:disabled),.li:active,.wk:active{transform:scale(.97)}
+.li:active,.wk:active{opacity:.75}
+.btn.primary:active{filter:brightness(.95)}
+.check.on,.tick.on{animation:pop .28s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{0%{transform:scale(.7)}100%{transform:scale(1)}}
+#sheet .grab{position:absolute;top:8px;left:50%;width:38px;height:5px;margin-left:-19px;border-radius:3px;background:var(--faint);opacity:.8}
+#sheet .panel{transition:transform .26s cubic-bezier(.2,.8,.2,1);will-change:transform;overscroll-behavior:contain}
+#sheet .scrim{transition:opacity .26s ease}
+#sheet.opening .panel{animation:sheetIn .34s cubic-bezier(.2,.85,.25,1)}
+#sheet.opening .scrim{animation:fadeIn .3s ease}
+#sheet.closing .panel{transform:translateY(105%)!important;transition:transform .24s cubic-bezier(.4,0,.8,.4)}
+#sheet.closing .scrim{opacity:0!important}
+#sheet .panel.push>*{animation:pushIn .24s cubic-bezier(.2,.8,.2,1)}
+#sheet .panel.pop>*{animation:popIn .24s cubic-bezier(.2,.8,.2,1)}
+#app.fade{animation:fadeIn .2s ease}
+#app.fade.next{animation:slideL .22s cubic-bezier(.2,.8,.2,1)}
+#app.fade.prev{animation:slideR .22s cubic-bezier(.2,.8,.2,1)}
+#toast:not([hidden]){animation:toastIn .25s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes sheetIn{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pushIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@keyframes slideL{from{opacity:.4;transform:translateX(18px)}to{opacity:1;transform:none}}
+@keyframes slideR{from{opacity:.4;transform:translateX(-18px)}to{opacity:1;transform:none}}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+/* launch splash shown until the app has drawn */
+#splash{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;transition:opacity .25s ease}
+#splash.gone{opacity:0;pointer-events:none}
+#splash img{width:96px;height:96px;border-radius:22px;box-shadow:var(--shadow)}
