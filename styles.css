@@ -210,3 +210,14 @@ nav.tabs button:not(.on) span{display:none}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(150px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:14px;z-index:30;max-width:calc(100% - 32px);box-shadow:var(--shadow)}
 .bubble{align-self:flex-end;max-width:80%;background:var(--bubble);border-radius:20px;padding:10px 16px;font-size:15px}
 @media (prefers-reduced-motion:no-preference){.line i,.mini i{transition:width .35s ease}.check,.tick{transition:background .15s ease}}
+
+/* ingredient rows (recipe builder, meal check, picker) */
+.ilist{display:flex;flex-direction:column;gap:18px}
+.irow{display:grid;grid-template-columns:52px 1fr;gap:12px;align-items:start;min-width:0}
+.irow .plate{width:52px;height:52px;font-size:24px;margin-top:2px}
+.iname{border:0;background:none;padding:0;text-align:left;font:400 17px/1.25 var(--display);color:var(--ink);display:inline}
+.ictl{display:grid;grid-template-columns:84px 1fr 34px;gap:8px;align-items:center;margin-top:8px}
+.ictl input{background:var(--surface);box-shadow:var(--shadow-sm);border-radius:12px;padding:8px 10px;min-height:40px;font:500 16px var(--display);font-variant-numeric:tabular-nums}
+.ictl select{width:100%;min-height:40px;font-size:15px;border-radius:12px;padding-inline:10px 26px}
+.ictl .iconbtn{width:34px;height:34px;box-shadow:none;background:var(--sunk)}
+.card .ictl{grid-template-columns:110px 1fr}

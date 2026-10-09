@@ -6,8 +6,9 @@ A personal training and nutrition planner that installs on your iPhone home scre
 - **Week**: the split and eating plan side by side, sessions done, average kcal and protein eaten, and the default weekly split.
 - **Train**: your exercise database and workout templates (sets, reps, kg, rest per exercise).
 - **Food**: your food database and daily targets.
-- **Recipe import**: screenshot a recipe (Instagram or anywhere) or paste the ingredients; Claude works out the ingredients, weights and macros, you check and adjust the grams, and it's saved as a food with per-serving values.
-- **"What did you eat?"**: type something like "chicken wrap and a flat white". It searches your foods first, and can have Claude estimate anything that isn't in your library.
+- **Recipe builder**: paste an ingredient list (e.g. copied from an Instagram caption) or add ingredients one by one from the built-in database. Each line is matched to a food with its amount ("2 tbsp olive oil", "1 tin (400g) chopped tomatoes", "½ tsp paprika"), you can change any amount or swap a match, and the recipe is saved as a food with per-serving values.
+- **"What did you eat?"**: type something like "2 eggs, 2 slices of wholemeal toast and a flat white". It's split into separate foods and matched against your foods and the database, ready to check and add.
+- **Ingredient database, built in**: about 240 everyday UK-named ingredients with typical portions (1 tbsp, 1 medium, 1 tin…), plus about 5,900 more generic foods. Everything runs on the phone, works offline, and costs nothing.
 
 Plain HTML/CSS/JS with no build step, hosted as a static site on Vercel.
 
@@ -29,20 +30,7 @@ Note: free Supabase projects pause after a week with no activity. Using the app 
 2. In Vercel (team *TW*, or your personal account) → *Add New Project* → import the repo. Framework preset: **Other**. No build command, output directory is the repo root.
 3. Deploy. You get a URL like `recomp-planner.vercel.app`.
 
-### 3. Recipe import (Anthropic API key)
-Recipe import and meal estimates call Claude from a small server function (`api/nutrition.js`), so they need an Anthropic API key. This is billed separately from a Claude subscription, pay-as-you-go.
-1. At console.anthropic.com, create an API key and add a little credit (£5 lasts a long time: each recipe with a few screenshots is roughly 1–3p).
-2. In Vercel → the project → Settings → Environment Variables, add:
-   - `ANTHROPIC_API_KEY` = the key
-   - `SUPABASE_URL` and `SUPABASE_ANON_KEY` = the same values as in `config.js` (the function uses them to check you're signed in, so nobody else can spend your credit)
-   - optional `ANTHROPIC_MODEL` to choose a different Claude model
-3. Redeploy.
-
-Everything else in the app works without this; only the two AI features need it, and they need a connection.
-
-**Using it with Instagram:** iPhone web apps can't appear in the share sheet, so screenshot the post (the ingredients are usually in the caption, so take two or three), then in the app tap *Import a recipe* → *Choose screenshots*. Pasting the caption text works too.
-
-### 4. Install on the iPhone
+### 3. Install on the iPhone
 1. Open the Vercel URL in **Safari**.
 2. Share button → **Add to Home Screen** → Add.
 3. Open it from the home screen icon (not from Safari), and sign in once.
@@ -71,3 +59,12 @@ Deleting is a soft delete (`deleted = true`) so other devices pick it up on thei
 
 ## Starter set
 On first sign-in the app offers an optional starter set: 26 exercises matched to a rack, barbell, dumbbells, cables, landmine and pull-up bar, Push A / Pull A / Legs A templates, a Mon–Sat split and 18 common foods. Starter foods are tagged *starter* until you edit them. The macros are typical UK label values, so check them against the packets you buy.
+
+## Ingredient database
+- `data/ingredients-core.js`: the core list, values per 100 g (100 ml for drinks), with UK names, typical portions and other names each item is matched by. Carbs exclude fibre, as on UK labels.
+- `data/usda-foods.json`: the wider list (generic foods only; US brand and restaurant items removed), loaded on first search and cached for offline use.
+- `ingredients.js`: search, and the parser that reads lines like "2 large eggs" or "1 tin (400g) chopped tomatoes".
+
+Sources: USDA FoodData Central, SR Legacy (public domain), via the TempoLife food dataset (tempolife.app, CC-BY-4.0). A few UK items that USDA doesn't have (halloumi, gnocchi, panko, oven chips, oat drink, light coconut milk) use typical UK pack values, and coffee-shop drinks are estimated from espresso plus semi-skimmed milk. Each item shows where its numbers came from.
+
+These are reference values. For branded products you buy often, add your own food from the label and it will be matched first.

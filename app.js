@@ -157,7 +157,7 @@ function vToday(){
     }
     h+=`</div>`;
   }
-  h+=`<div class="setbtns"><button class="btn" data-act="copyMeals">Copy another day</button><button class="btn" data-act="importRecipe">Import a recipe</button>${t.n&&t.nEat<t.n?`<button class="btn" data-act="eatAll">Mark all eaten</button>`:""}</div></section>`;
+  h+=`<div class="setbtns"><button class="btn" data-act="copyMeals">Copy another day</button><button class="btn" data-act="newRecipe">Build a recipe</button>${t.n&&t.nEat<t.n?`<button class="btn" data-act="eatAll">Mark all eaten</button>`:""}</div></section>`;
 
   // training
   const woOpts = [`<option value="" ${d.workout==null?"selected":""}>Split: ${(()=>{const s=(S.settings.split||{})[wd(date)]; return s&&s!=="rest"&&S.wo[s]?esc(S.wo[s].name):"Rest";})()}</option>`,
@@ -251,7 +251,7 @@ function exList(filter, q, act){
 function vFood(){
   const T=S.settings.targets; const mk=T.protein*4+T.carbs*4+T.fat*9;
   let h=head({ eyebrow:"Library & targets", title:"Food" })+`<div class="stack" style="gap:16px">
-  <div class="setbtns"><button class="btn primary" data-act="importRecipe">Import a recipe</button><button class="btn" data-act="newFood">+ New food</button></div>
+  <div class="setbtns"><button class="btn primary" data-act="newRecipe">Build a recipe</button><button class="btn" data-act="newFood">+ New food</button></div>
   <section class="card"><div class="card-h"><h2>Daily targets</h2></div>
    <div class="grid4">
     <label class="field"><span class="label k">Kcal</span><input id="t-kcal" inputmode="numeric" value="${esc(T.kcal)}" data-in="target" data-k="kcal"></label>
@@ -287,19 +287,8 @@ function renderSheet(){
   if(!s){ el.hidden=true; p.innerHTML=""; document.body.style.overflow=""; return; }
   el.hidden=false; document.body.style.overflow="hidden";
   let h="";
-  if(s.type==="foodPick"){
-    const f=S.foods[s.sel];
-    h+=sheetHead(`Add to ${SLOTS.find(x=>x[0]===s.slot)[1]}`, `<button class="btn ghost" data-act="importRecipe">Recipe</button><button class="btn ghost" data-act="newFoodFromPick">+ New</button>`);
-    h+=`<div class="sbody"><div class="seg">${SLOTS.map(([k,l])=>`<button class="${s.slot===k?"on":""}" data-act="pickSlot" data-v="${k}">${l}</button>`).join("")}</div>`;
-    if(f){ h+=`<div class="card"><div class="card-h"><b style="font-weight:600">${esc(f.name)}</b></div>
-      <label class="field"><span class="label">Amount</span><span class="unitwrap"><input id="fp-qty" inputmode="decimal" value="${esc(s.qty)}" data-in="pickQty"><span>${esc(f.unit)}</span></span></label>
-      <div id="fp-prev">${preview(foodMacros(f,num(s.qty)))}</div>
-      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fp-eaten" data-in="pickEaten" ${s.eaten?"checked":""} style="width:20px;height:20px"> Already eaten</label>
-      <button class="btn primary block" data-act="confirmPick">Add ${esc(f.name)}</button></div>`; }
-    h+=`<input type="search" id="fp-q" placeholder="Search your foods" value="${esc(s.q)}" data-in="pickQ" autocomplete="off">`;
-    if((s.q||"").trim().length>2) h+=`<button class="btn block" data-act="aiMealFromPick" style="text-align:left">✨ Work out “${esc(s.q.trim())}” with Claude</button>`;
-    h+=foodList(s.q, "pickFood", s.sel)+`</div>`;
-  }
+  if(s.type==="pick"){ h+=renderPick(s); }
+  else if(s.type==="list"){ h+=renderList(s); }
   else if(s.type==="mealItem"){
     const d=day(s.date), m=(d.meals||[]).find(x=>x.id===s.id);
     if(!m){ ui.sheets.pop(); return renderSheet(); }
@@ -322,7 +311,7 @@ function renderSheet(){
     h+=sheetHead(s.id?"Edit food":"New food")+`<div class="sbody">
      <div class="grid2" style="grid-template-columns:64px 1fr"><label class="field"><span class="label">Icon</span><input id="fd-emoji" value="${esc(d.emoji||"")}" placeholder="${foodEmoji(d)}" data-in="draft" data-k="emoji" style="text-align:center;font-size:24px;padding:4px"></label>
      <label class="field"><span class="label">Name</span><input id="fd-name" value="${esc(d.name)}" data-in="draft" data-k="name" placeholder="e.g. Chicken breast, raw"></label></div>
-     ${d.recipe?`<div class="banner">Imported recipe · makes ${esc(d.recipe.servings)} servings. Values below are per serving.<div class="small muted" style="margin-top:6px">${(d.recipe.items||[]).map(it=>esc(cap(it.name))+" "+n0(it.grams)+" g").join(" · ")}</div></div>`:""}
+     ${d.recipe?`<div class="banner">This is a recipe that makes ${esc(d.recipe.servings)} servings. Values below are per serving. <button class="btn ghost" data-act="editRecipeFromFood">Edit ingredients</button></div>`:""}
      <div class="grid2"><label class="field"><span class="label">Serving size</span><input id="fd-size" inputmode="decimal" value="${esc(d.size)}" data-in="draft" data-k="size" data-num="1"></label>
        <label class="field"><span class="label">Unit</span><select id="fd-unit" data-in="draft" data-k="unit">${UNITS.map(u=>`<option ${d.unit===u?"selected":""}>${u}</option>`).join("")}</select></label></div>
      <div class="label" style="margin-top:4px">Per serving</div>
@@ -373,8 +362,6 @@ function renderSheet(){
      <label class="field"><span class="label">Notes</span><input id="wd-notes" value="${esc(d.notes||"")}" data-in="draft" data-k="notes" placeholder="e.g. Phase 2, add 2.5 kg when top of range hit"></label>
      <div class="setbtns">${s.id?delBtn("wo:"+s.id,"delWorkout"):""}<span class="spacer"></span><button class="btn primary" data-act="saveWorkout">Save workout</button></div></div>`;
   }
-  else if(s.type==="aiInput"){ h+=renderAIInput(s); }
-  else if(s.type==="aiReview"){ h+=renderAIReview(s); }
   else if(s.type==="exPick"){
     h+=sheetHead("Add exercise", `<button class="btn ghost" data-act="newExFromPick">+ New</button>`)+`<div class="sbody">
      <input type="search" id="xp-q" placeholder="Search exercises" value="${esc(s.q)}" data-in="xpQ" autocomplete="off">
@@ -427,84 +414,116 @@ function accountCard(){
 }
 
 
-/* ---------- AI: recipe import + meal estimates (via /api/nutrition) ---------- */
+/* ---------- ingredient picker, recipe builder and meal check (all offline) ---------- */
 function guessSlot(){ const h=new Date().getHours(); return h<11?"breakfast":h<15?"lunch":h<17?"snacks":h<22?"dinner":"snacks"; }
-function scaled(it){ const k=it.g0>0? num(it.grams)/it.g0 : 1; return { kcal:it.kcal0*k, p:it.p0*k, c:it.c0*k, f:it.f0*k, fibre:(it.fibre0||0)*k }; }
-function aiTotals(s){ const t={kcal:0,p:0,c:0,f:0,fibre:0}; for(const it of s.items){ const x=scaled(it); for(const k in t) t[k]+=x[k]; } return t; }
 function cap(s){ s=String(s||""); return s.charAt(0).toUpperCase()+s.slice(1); }
-async function shrinkImage(file){
-  const url=URL.createObjectURL(file);
-  try{
-    const img=await new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=url; });
-    const max=1568, s=Math.min(1, max/Math.max(img.naturalWidth,img.naturalHeight));
-    const c=document.createElement("canvas"); c.width=Math.round(img.naturalWidth*s); c.height=Math.round(img.naturalHeight*s);
-    c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-    const full=c.toDataURL("image/jpeg",0.85);
-    const t=document.createElement("canvas"), ts=120/Math.max(c.width,c.height); t.width=Math.round(c.width*ts); t.height=Math.round(c.height*ts);
-    t.getContext("2d").drawImage(c,0,0,t.width,t.height);
-    return { media_type:"image/jpeg", data:full.split(",")[1], thumb:t.toDataURL("image/jpeg",0.7) };
-  } finally { URL.revokeObjectURL(url); }
+const r1=v=>Math.round(v*10)/10, r4=v=>Math.round(v*10000)/10000;
+function rowsTotal(rows){ const t={kcal:0,p:0,c:0,f:0,fi:0}; let g=0, gKnown=true;
+  for(const r of rows){ const x=Ing.rowMacros(r); for(const k in t) t[k]+=x[k]; const gg=Ing.rowGrams(r); if(gg==null) gKnown=false; else g+=gg; }
+  return { ...t, grams:gKnown?g:null }; }
+function unitText(u){ return u.l; }
+function mealFromRow(row, slot, eaten){
+  const u=row.units[row.u]||row.units[0], b=row.base;
+  return { id:rid("m"), slot, foodId:row.foodId||null, ref:row.ref, name:row.name, emoji:row.emoji||foodEmoji(row), size:1, unit:unitText(u),
+    kcal:r4(b.k*u.f), p:r4(b.p*u.f), c:r4(b.c*u.f), f:r4(b.f*u.f), qty:num(row.q), eaten:!!eaten };
 }
-async function runAI(s){
-  if(navigator.onLine===false){ s.error="You're offline. Recipe import needs a connection."; render(); return; }
-  s.busy=true; s.error=""; render();
-  try{
-    const tok=await Sync.token(); if(!tok) throw new Error("Sign in again to use this.");
-    const r=await fetch("api/nutrition",{ method:"POST", headers:{ "Content-Type":"application/json", Authorization:"Bearer "+tok },
-      body:JSON.stringify({ mode:s.mode, text:s.text||"", images:(s.images||[]).map(i=>({media_type:i.media_type,data:i.data})) }) });
-    const j=await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(j.error||"That didn't work. Try again in a moment.");
-    if(!(j.items||[]).length) throw new Error("Couldn't find any foods in that. Try a clearer screenshot or paste the ingredients.");
-    const review={ type:"aiReview", mode:s.mode, date:s.date||ui.date, slot:s.slot||guessSlot(), eaten:s.mode==="meal",
-      title:j.title||"Recipe", emoji:j.emoji||"🍽️", servings:j.servings||1, servingsNote:j.servings_note||"", assumptions:j.assumptions||[],
-      items:j.items.map(it=>({ name:it.name, amount:it.amount, confidence:it.confidence, g0:+it.grams||0, grams:String(Math.round(+it.grams||0)),
-        kcal0:it.kcal, p0:it.p, c0:it.c, f0:it.f, fibre0:it.fibre||0 })) };
-    const i=ui.sheets.indexOf(s); if(i>=0) ui.sheets[i]=review; else ui.sheets.push(review);
-    s.busy=false; render(); const p=$("#panel"); if(p) p.scrollTop=0;
-  }catch(e){ s.busy=false; s.error=e.message||String(e); render(); }
+function ensureFull(){ if(!Ing.fullLoaded()) Ing.loadFull().then(()=>{ if(top()) render(); }).catch(()=>{}); }
+function unitOptions(row, i){ return row.units.map((u,k)=>`<option value="${k}" ${k===row.u?"selected":""}>${esc(u.l)}${u.approx?" (approx)":""}</option>`).join(""); }
+function amountLine(row){ const u=row.units[row.u]||row.units[0], g=Ing.rowGrams(row);
+  return `${n1(row.q)} ${esc(u.l)}${g!=null&&u.l!=="g"&&u.l!=="ml"?` · ${n0(g)} g`:""}`; }
+function srcLabel(src){ return src.kind==="food"?(src.note||"Your food"):src.kind==="core"?"Ingredient":"USDA food"; }
+function resultRow(src, act, sel){
+  const per = src.kind==="food" ? `per ${n1((src.units[0]&&src.defaultQty)||1)} ${esc(src.units[0].l)}` : "per 100 g";
+  const k = src.kind==="food" ? src.base.k*(src.units[0].f*(src.defaultQty||1)) : src.base.k;
+  return `<button class="li ${sel===src.ref?"sel":""}" data-act="${act}" data-ref="${esc(src.ref)}"><span class="plate" aria-hidden="true">${src.emoji||foodEmoji(src)}</span>
+    <span class="main"><div class="nm">${esc(src.name)}</div><div class="sub">${per} · <span class="pc">P ${n1(src.kind==="food"?src.base.p*src.units[0].f*(src.defaultQty||1):src.base.p)}</span></div></span>
+    <span class="right">${n0(k)}<span class="small muted" style="font-weight:500"> cal</span></span></button>`;
 }
-function renderAIInput(s){
-  let h=sheetHead(s.mode==="recipe"?"Import a recipe":"Working it out")+`<div class="sbody">`;
-  if(s.mode==="recipe"){
-    h+=`<div class="note muted" style="font-size:14.5px">Screenshot the recipe in Instagram, including the ingredients (usually in the caption, so it may take two or three screenshots). Add them here, or paste the ingredients as text.</div>
-    <label class="btn block" for="ai-files" style="text-align:center;display:block;line-height:22px">${(s.images||[]).length?"Add more screenshots":"Choose screenshots"}</label>
-    <input type="file" id="ai-files" accept="image/*" multiple hidden data-in="aiFiles">`;
-    if((s.images||[]).length) h+=`<div class="chips">${s.images.map((im,i)=>`<span style="position:relative;display:inline-block"><img src="${im.thumb}" alt="Screenshot ${i+1}" style="height:84px;border-radius:12px;box-shadow:var(--shadow-sm);display:block"><button class="iconbtn" style="position:absolute;top:-8px;right:-8px;width:26px;height:26px" data-act="aiRmImg" data-i="${i}" aria-label="Remove screenshot ${i+1}">${ICON.close}</button></span>`).join("")}</div>`;
-    h+=`<textarea id="ai-text" data-in="aiText" placeholder="Or paste the caption or ingredient list">${esc(s.text||"")}</textarea>`;
-  } else {
-    h+=`<div class="bubble">${esc(s.text)}</div>`;
+function pickResults(s){
+  const q=(s.q||"").trim();
+  if(!q){
+    const own=sortedBy(S.foods).map(f=>Ing.foodSource(f));
+    return `<div class="label">Your foods</div>`+(own.length?`<div class="list">${own.map(x=>resultRow(x,"pickSrc",s.sel)).join("")}</div>`:`<div class="empty">None saved yet.</div>`)
+      +`<div class="small muted">Or search ${Ing.coreCount} everyday ingredients and about 5,900 more foods.</div>`;
   }
-  if(s.error) h+=`<div class="banner" style="color:var(--warn)">${esc(s.error)}</div>`;
-  h+=`<button class="btn primary block" data-act="aiRun" ${s.busy?"disabled":""}>${s.busy?(s.mode==="recipe"?"Reading the recipe…":"Estimating…"):(s.mode==="recipe"?"Work out nutrition":"Try again")}</button>
-    <div class="small muted">Claude estimates the ingredients, weights and macros. You can adjust any weight before saving.</div></div>`;
+  ensureFull();
+  const res=Ing.search(q, S.foods, 60), groups=[["food","Your foods"],["core","Ingredients"],["usda","More foods (USDA)"]];
+  let h=""; for(const [k,l] of groups){ const xs=res.filter(r=>r.kind===k).slice(0, k==="usda"?20:15); if(xs.length) h+=`<div class="label">${l}</div><div class="list">${xs.map(x=>resultRow(x,"pickSrc",s.sel)).join("")}</div>`; }
+  if(!Ing.fullLoaded()) h+=`<div class="small muted">Loading more foods…</div>`;
+  if(!h) h=`<div class="empty">Nothing matches “${esc(q)}”. Try a simpler word, or add it as a new food.</div>`;
   return h;
 }
-function renderAIReview(s){
-  const T=aiTotals(s), per={}; for(const k in T) per[k]=T[k]/(s.mode==="recipe"?Math.max(1,num(s.servings)):1);
-  let h=sheetHead(s.mode==="recipe"?"Check the recipe":"Check your meal")+`<div class="sbody">`;
-  if(s.mode==="recipe"){
-    h+=`<div class="grid2" style="grid-template-columns:64px 1fr"><label class="field"><span class="label">Icon</span><input id="ar-emoji" value="${esc(s.emoji)}" data-in="aiField" data-k="emoji" style="text-align:center;font-size:24px;padding:4px"></label>
-      <label class="field"><span class="label">Name</span><input id="ar-title" value="${esc(s.title)}" data-in="aiField" data-k="title"></label></div>
-      <label class="field"><span class="label">Servings the recipe makes</span><input id="ar-serv" inputmode="decimal" value="${esc(s.servings)}" data-in="aiField" data-k="servings" data-rerender="1"></label>
-      ${s.servingsNote?`<div class="small muted" style="margin-top:-8px">${esc(s.servingsNote)}</div>`:""}
-      <div class="card" style="gap:8px"><div class="label">Per serving</div>${preview(per)}<div class="small muted">Whole recipe ${n0(T.kcal)} kcal · ${n1(T.p)} g protein</div></div>`;
+function renderPick(s){
+  const forDay=s.target==="day";
+  let h=sheetHead(forDay?`Add to ${SLOTS.find(x=>x[0]===s.slot)[1]}`:(s.rowIdx!=null?"Swap ingredient":"Add ingredient"),
+    forDay?`<button class="btn ghost" data-act="newRecipe">Recipe</button><button class="btn ghost" data-act="newFoodFromPick">+ New</button>`:"")+`<div class="sbody">`;
+  if(forDay) h+=`<div class="seg">${SLOTS.map(([k,l])=>`<button class="${s.slot===k?"on":""}" data-act="pickSlot" data-v="${k}">${l}</button>`).join("")}</div>`;
+  if(s.row){ const x=Ing.rowMacros(s.row);
+    h+=`<div class="card"><div class="frow" style="grid-template-columns:56px 1fr;gap:12px"><div class="plate sm" aria-hidden="true">${s.row.emoji||foodEmoji(s.row)}</div>
+      <div style="min-width:0"><div class="fname">${esc(s.row.name)}</div><div class="fqty">${esc(srcLabel(s.src||{kind:s.row.kind}))}</div></div></div>
+      <div class="ictl"><input id="pk-q" inputmode="decimal" value="${esc(s.row.q)}" data-in="pickRowQ" aria-label="Amount"><select id="pk-u" data-in="pickRowU" aria-label="Unit">${unitOptions(s.row)}</select></div>
+      <div id="pk-prev">${preview(x)}</div>
+      ${forDay?`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="fp-eaten" data-in="pickEaten" ${s.eaten?"checked":""} style="width:20px;height:20px"> Already eaten</label>`:""}
+      <button class="btn primary block" data-act="confirmPick">${forDay?`Add ${esc(s.row.name)}`:(s.rowIdx!=null?"Use this instead":"Add to recipe")}</button></div>`; }
+  const parts=Ing.splitMeal(s.q||""); 
+  h+=`<input type="search" id="fp-q" placeholder="Search foods and ingredients" value="${esc(s.q)}" data-in="pickQ" autocomplete="off" enterkeyhint="search">`;
+  if(forDay && parts.length>1) h+=`<button class="btn block" data-act="pickSplit" style="text-align:left">Split into ${parts.length} foods: ${esc(parts.join(" · "))}</button>`;
+  return h+pickResults(s)+`</div>`;
+}
+function rowEditor(row, i){
+  const x=Ing.rowMacros(row);
+  return `<div class="irow"><div class="plate" aria-hidden="true">${row.emoji||foodEmoji(row)}</div>
+    <div style="min-width:0"><button class="iname" data-act="swapRow" data-i="${i}">${esc(row.name)}${row.approx?` <span class="pill starter" style="color:var(--warn)">check</span>`:""}</button>
+      ${row.line?`<div class="fqty">“${esc(row.line.replace(/^[\s\-–•*]+/,""))}”</div>`:""}
+      ${fmac(x)}
+      <div class="ictl"><input id="ir-q-${i}" inputmode="decimal" value="${esc(row.q)}" data-in="rowQ" data-i="${i}" aria-label="Amount of ${esc(row.name)}">
+        <select id="ir-u-${i}" data-in="rowU" data-i="${i}" aria-label="Unit">${unitOptions(row)}</select>
+        <button class="iconbtn" data-act="rmRow" data-i="${i}" aria-label="Remove ${esc(row.name)}">${ICON.close}</button></div></div></div>`;
+}
+function renderList(s){
+  const T=rowsTotal(s.rows), rec=s.mode==="recipe", sv=Math.max(0.5,num(s.servings)||1);
+  let h=sheetHead(rec?(s.id?"Edit recipe":"New recipe"):"Check your meal")+`<div class="sbody">`;
+  if(rec){
+    h+=`<div class="grid2" style="grid-template-columns:64px 1fr"><label class="field"><span class="label">Icon</span><input id="rb-emoji" value="${esc(s.emoji||"")}" placeholder="${foodEmoji({name:s.name})}" data-in="listField" data-k="emoji" style="text-align:center;font-size:24px;padding:4px"></label>
+      <label class="field"><span class="label">Name</span><input id="rb-name" value="${esc(s.name||"")}" data-in="listField" data-k="name" placeholder="e.g. Harissa chicken traybake"></label></div>
+      <label class="field"><span class="label">Servings it makes</span><input id="rb-serv" inputmode="decimal" value="${esc(s.servings)}" data-in="listField" data-k="servings" data-rerender="1"></label>
+      <div class="card" style="gap:8px"><div class="label">Per serving</div>${preview({kcal:T.kcal/sv,p:T.p/sv,c:T.c/sv,f:T.f/sv})}
+        <div class="small muted">Whole recipe ${n0(T.kcal)} kcal · ${n1(T.p)} g protein${T.grams!=null&&T.grams>0?` · ${n0(T.grams)} g, so a serving is about ${n0(T.grams/sv)} g`:""}</div></div>`;
+    const open=s.showPaste||!s.rows.length;
+    h+= open ? `<div class="card" style="gap:10px"><div class="label">Paste an ingredient list</div>
+        <textarea id="rb-paste" data-in="listPaste" placeholder="One ingredient per line, e.g.&#10;800g chicken thighs&#10;2 tbsp olive oil&#10;1 tin chopped tomatoes">${esc(s.paste||"")}</textarea>
+        <div class="setbtns"><button class="btn primary" data-act="listParse">Match ingredients</button><span class="small muted">Copy it from the caption, then paste here.</span></div></div>`
+      : `<button class="btn" data-act="listShowPaste">Paste more ingredients</button>`;
   } else {
-    h+=`<div class="card" style="gap:8px"><div class="label">${esc(s.title)}</div>${preview(T)}</div>`;
+    h+=`<div class="bubble">${esc(s.text)}</div><div class="card" style="gap:8px"><div class="label">Total</div>${preview(T)}</div>`;
   }
-  h+=`<div class="label" style="margin-top:4px">${s.mode==="recipe"?"Ingredients":"Foods"} · change a weight to rescale</div>`;
-  s.items.forEach((it,i)=>{ const x=scaled(it);
-    h+=`<div class="frow" style="grid-template-columns:48px 1fr 96px;gap:12px"><div class="plate" style="width:48px;height:48px;font-size:22px" aria-hidden="true">${foodEmoji({name:it.name})}</div>
-      <div style="min-width:0"><div class="fname" style="font-size:16.5px">${esc(cap(it.name))}${it.confidence==="low"?` <span class="pill starter">guess</span>`:""}</div><div class="fqty">${esc(it.amount)}</div>${fmac(x)}</div>
-      <div style="display:flex;gap:6px;align-items:center"><label class="unitwrap" style="flex:1"><input id="ar-g-${i}" inputmode="decimal" value="${esc(it.grams)}" data-in="aiGrams" data-i="${i}" aria-label="Grams of ${esc(it.name)}" style="padding-right:22px;font-size:16px;padding-left:10px"><span>g</span></label>
-      <button class="iconbtn" style="width:30px;height:30px;box-shadow:none;background:var(--sunk)" data-act="aiRmItem" data-i="${i}" aria-label="Remove ${esc(it.name)}">${ICON.close}</button></div></div>`; });
-  if((s.assumptions||[]).length) h+=`<div class="small muted"><b style="font-weight:600">Assumed:</b> ${s.assumptions.map(esc).join(" · ")}</div>`;
-  h+=`<div class="field"><span class="label">${s.mode==="recipe"?"Add a serving to":"Add to"} ${esc(fmtDate(s.date))}</span><div class="seg">${SLOTS.map(([k,l])=>`<button class="${s.slot===k?"on":""}" data-act="aiSlot" data-v="${k}">${l}</button>`).join("")}</div></div>
-    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ar-eaten" data-in="aiEaten" ${s.eaten?"checked":""} style="width:20px;height:20px"> Already eaten</label>`;
-  if(s.mode==="recipe") h+=`<div class="setbtns"><button class="btn" data-act="aiSaveRecipe" data-add="0">Save recipe</button><span class="spacer"></span><button class="btn primary" data-act="aiSaveRecipe" data-add="1">Save + add 1 serving</button></div>`;
-  else h+=`<div class="setbtns"><button class="btn" data-act="aiSaveMealAsFood">Save as one food</button><span class="spacer"></span><button class="btn primary" data-act="aiAddMeal">Add ${s.items.length} ${s.items.length===1?"food":"foods"}</button></div>`;
+  h+=`<div class="sec-h"><span class="label" style="flex:1">${rec?"Ingredients":"Foods"} · ${s.rows.length}</span><button class="btn ghost" data-act="listAdd">+ Add</button></div>`;
+  if(s.rows.length) h+=`<div class="ilist">${s.rows.map(rowEditor).join("")}</div>`;
+  else h+=`<div class="empty">${rec?"No ingredients yet. Paste a list above or add them one by one.":"Nothing matched. Add foods one by one."}</div>`;
+  if((s.misses||[]).length) h+=`<div class="card" style="gap:8px"><div class="label">Couldn't match</div>${s.misses.map((m,i)=>`<div class="top-row" style="gap:8px"><span style="flex:1;min-width:0">${esc(m.line)}</span><button class="btn" data-act="findMiss" data-i="${i}">Find</button><button class="iconbtn" data-act="dropMiss" data-i="${i}" aria-label="Ignore">${ICON.close}</button></div>`).join("")}</div>`;
+  if(s.skipped) h+=`<div class="small muted">Skipped ${s.skipped} line${s.skipped===1?"":"s"} that ${s.skipped===1?"wasn't an ingredient":"weren't ingredients"} (headings, method, salt and pepper).</div>`;
+  h+=`<div class="small muted">Tap a name to swap it for a different food. Anything marked <b style="color:var(--warn);font-weight:600">check</b> was a loose match or a guessed amount.</div>`;
+  h+=`<div class="field"><span class="label">${rec?"Add a serving to":"Add to"} ${esc(fmtDate(s.date))}</span><div class="seg">${SLOTS.map(([k,l])=>`<button class="${s.slot===k?"on":""}" data-act="listSlot" data-v="${k}">${l}</button>`).join("")}</div></div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rb-eaten" data-in="listEaten" ${s.eaten?"checked":""} style="width:20px;height:20px"> Already eaten</label>`;
+  if(rec) h+=`<div class="setbtns">${s.id?delBtn("food:"+s.id,"delRecipe"):""}<span class="spacer"></span><button class="btn" data-act="saveRecipe" data-add="0">Save recipe</button><button class="btn primary" data-act="saveRecipe" data-add="1">Save + add 1 serving</button></div>`;
+  else h+=`<div class="setbtns"><button class="btn" data-act="mealToRecipe">Save as a recipe</button><span class="spacer"></span><button class="btn primary" data-act="listAddMeal" ${s.rows.length?"":"disabled"}>Add ${s.rows.length} ${s.rows.length===1?"food":"foods"}</button></div>`;
   return h+`</div>`;
 }
-
+function parseInto(s, lines){
+  let skipped=0; s.misses=s.misses||[];
+  for(const l of lines){ const r=Ing.parseLine(l, S.foods); if(!r){ skipped++; continue; } if(r.row) s.rows.push(r.row); else s.misses.push({line:l.trim(), text:r.text}); }
+  s.skipped=(s.skipped||0)+skipped;
+}
+function recipeRows(f){
+  const rc=f.recipe||{};
+  if(Array.isArray(rc.rows)) return clone(rc.rows);
+  if(Array.isArray(rc.items)) return rc.items.map(Ing.legacyItemRow);
+  return [];
+}
+function openRecipe(f, extra){
+  pushSheet(Object.assign({type:"list", mode:"recipe", id:f?f.id:null, name:f?f.name:"", emoji:f?f.emoji||"":"", servings:f&&f.recipe?f.recipe.servings:4,
+    rows:f?recipeRows(f):[], misses:[], paste:"", showPaste:false, date:ui.date, slot:guessSlot(), eaten:false, skipped:0}, extra||{}));
+}
 /* ---------- render ---------- */
 function render(){
   const a=document.activeElement, fid=a&&a.id, sel=a&&("selectionStart" in a)?[a.selectionStart,a.selectionEnd]:null;
@@ -528,26 +547,42 @@ function ensureLog(date, exId){
 }
 function itemFor(date, exId){ const wf=workoutFor(date); return (wf.w&&wf.w.items||[]).find(x=>x.exId===exId)||{}; }
 const A = {
-  importRecipe(){ const s=top(); pushSheet({type:"aiInput", mode:"recipe", images:[], text:"", date:ui.date, slot:s&&s.type==="foodPick"?s.slot:guessSlot()}); },
-  aiRmImg(b){ top().images.splice(+b.dataset.i,1); render(); },
-  aiRun(){ const s=top(); if(s.mode==="recipe" && !(s.images||[]).length && !(s.text||"").trim()){ s.error="Add a screenshot or paste the ingredients first."; render(); return; } runAI(s); },
-  aiMealFromPick(){ const s=top(); const a={type:"aiInput", mode:"meal", text:s.q.trim(), date:s.date, slot:s.slot}; ui.sheets[ui.sheets.length-1]=a; runAI(a); },
-  aiRmItem(b){ top().items.splice(+b.dataset.i,1); render(); },
-  aiSlot(b){ top().slot=b.dataset.v; render(); },
-  aiSaveRecipe(b){ const s=top(), T=aiTotals(s), sv=Math.max(1,num(s.servings));
-    if(!s.items.length){ toast("There are no ingredients to save."); return; }
-    const id=rid("f"), r1=v=>Math.round(v*10)/10;
-    const food={ id, name:String(s.title||"Recipe").trim(), emoji:(s.emoji||"").trim()||foodEmoji({name:s.title}), size:1, unit:"serving",
-      kcal:Math.round(T.kcal/sv), p:r1(T.p/sv), c:r1(T.c/sv), f:r1(T.f/sv), fibre:r1(T.fibre/sv),
-      recipe:{ servings:sv, assumptions:s.assumptions||[], importedAt:TODAY(), items:s.items.map(it=>{ const x=scaled(it); return { name:it.name, amount:it.amount, grams:num(it.grams), kcal:Math.round(x.kcal), p:r1(x.p), c:r1(x.c), f:r1(x.f) }; }) } };
-    Sync.put("foods/"+id, food);
-    if(b.dataset.add==="1"){ const d=dayMut(s.date); d.meals.push({ id:rid("m"), slot:s.slot, foodId:id, name:food.name, emoji:food.emoji, size:1, unit:"serving", kcal:food.kcal, p:food.p, c:food.c, f:food.f, qty:1, eaten:!!s.eaten }); queueSave("days/"+s.date); }
-    ui.sheets=[]; loadS(); toast(b.dataset.add==="1"?`Saved ${food.name} and added a serving`:`Saved ${food.name} to your foods`); render(); },
-  aiAddMeal(){ const s=top(); const d=dayMut(s.date);
-    for(const it of s.items){ const g=num(it.grams); if(g<=0) continue; const x=scaled(it);
-      d.meals.push({ id:rid("m"), slot:s.slot, foodId:null, name:cap(it.name), emoji:foodEmoji({name:it.name}), size:g, unit:"g", kcal:Math.round(x.kcal), p:Math.round(x.p*10)/10, c:Math.round(x.c*10)/10, f:Math.round(x.f*10)/10, qty:g, eaten:!!s.eaten }); }
+  newRecipe(){ const s=top(); openRecipe(null, s&&s.type==="pick"&&s.target==="day"?{date:s.date, slot:s.slot}:{}); },
+  editRecipeFromFood(){ const s=top(), f=S.foods[s.id]; if(!f) return; ui.sheets.pop(); openRecipe(f); },
+  listShowPaste(){ top().showPaste=true; render(); },
+  listParse(){ const s=top(); let lines=Ing.splitRecipe(s.paste||""); const mi=lines.findIndex(l=>/^(method|instructions?|directions?|steps?|how to make)\b/i.test(l.replace(/^[\s\-–•*#]+/,""))); if(mi>0){ s.skipped=(s.skipped||0)+lines.length-mi; lines=lines.slice(0,mi); } if(!lines.length){ toast("Paste the ingredient list first."); return; }
+    const before=s.rows.length; parseInto(s, lines); s.paste=""; s.showPaste=false;
+    if(!s.name){ const t=lines.find(l=>!/^[\s\-–•*\d½¼¾⅓⅔]/.test(l) && l.length<70 && !/^(ingredients?|method|instructions?|serves|makes|for the)\b/i.test(l));
+      if(t){ s.name=cap(t.replace(/\((?:serves|makes)[^)]*\)/ig,"").replace(/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\uFE0F:#*]/gu,"").replace(/\s+/g," ").trim()); s.misses=s.misses.filter(m=>m.line!==t.trim()); } }
+    const sm=lines.join(" ").match(/\b(?:serves|makes|servings?:?)\s*(\d+)/i); if(sm && (!s.id)) s.servings=+sm[1];
+    toast(`Matched ${s.rows.length-before} ingredient${s.rows.length-before===1?"":"s"}`); render(); },
+  listAdd(){ const s=top(); ensureFull(); pushSheet({type:"pick", target:"list", q:"", sel:null, row:null, rowIdx:null}); },
+  swapRow(b){ const s=top(), r=s.rows[+b.dataset.i]; ensureFull(); pushSheet({type:"pick", target:"list", q:r.line?(Ing.parseLine(r.line,S.foods)||{}).text||r.name:r.name, sel:null, row:null, rowIdx:+b.dataset.i}); },
+  rmRow(b){ top().rows.splice(+b.dataset.i,1); render(); },
+  findMiss(b){ const s=top(), m=s.misses[+b.dataset.i]; ensureFull(); pushSheet({type:"pick", target:"list", q:m.text||m.line, sel:null, row:null, rowIdx:null, missIdx:+b.dataset.i}); },
+  dropMiss(b){ top().misses.splice(+b.dataset.i,1); render(); },
+  listSlot(b){ top().slot=b.dataset.v; render(); },
+  saveRecipe(b){ const s=top(); if(!s.rows.length){ toast("Add at least one ingredient."); return; }
+    const name=String(s.name||"").trim(); if(!name){ toast("Give the recipe a name."); const e=$("#rb-name"); if(e) e.focus(); return; }
+    const sv=Math.max(0.5,num(s.servings)||1), T=rowsTotal(s.rows), id=s.id||rid("f");
+    const food={ id, name, emoji:(s.emoji||"").trim()||foodEmoji({name}), size:1, unit:"serving",
+      kcal:Math.round(T.kcal/sv), p:r1(T.p/sv), c:r1(T.c/sv), f:r1(T.f/sv), fibre:r1(T.fi/sv),
+      recipe:{ v:2, servings:sv, gramsPerServing:T.grams?Math.round(T.grams/sv):null, rows:s.rows.map(r=>{ const o=clone(r); delete o.line; return o; }), updated:TODAY() } };
+    Sync.put("foods/"+id, food); loadS();
+    if(b.dataset.add==="1"){ const row=Ing.makeRow(Ing.foodSource(food)); row.q=1; row.u=0; dayMut(s.date).meals.push(mealFromRow(row, s.slot, s.eaten)); queueSave("days/"+s.date); }
+    ui.sheets=[]; toast(b.dataset.add==="1"?`Saved ${name} and added a serving`:`Saved ${name}`); render(); },
+  delRecipe(){ const s=top(), key="food:"+s.id; if(ui.confirm!==key){ ui.confirm=key; render(); return; } Sync.remove("foods/"+s.id); loadS(); ui.sheets=[]; toast("Recipe deleted"); render(); },
+  listAddMeal(){ const s=top(); const d=dayMut(s.date); s.rows.forEach(r=>{ if(num(r.q)>0) d.meals.push(mealFromRow(r, s.slot, s.eaten)); });
     queueSave("days/"+s.date); ui.sheets=[]; toast(`Added to ${SLOTS.find(x=>x[0]===s.slot)[1].toLowerCase()}`); render(); },
-  aiSaveMealAsFood(){ const s=top(); s.mode="recipe"; s.servings=1; A.aiSaveRecipe({dataset:{add:"1"}}); },
+  mealToRecipe(){ const s=top(); s.mode="recipe"; s.servings=1; s.name=s.name||cap(s.text||""); render(); },
+  pickSrc(b){ const s=top(), src=Ing.get(b.dataset.ref, S.foods); if(!src) return; s.sel=src.ref; s.src=src; s.row=Ing.makeRow(src);
+    if(s.target==="list"){ const l=ui.sheets[ui.sheets.length-2], old=s.rowIdx!=null?l.rows[s.rowIdx]:null, line=old?old.line:(s.missIdx!=null?l.misses[s.missIdx].line:null);
+      const fit=line?Ing.fitLine(src,line):null;
+      if(fit) s.row=fit;
+      else if(old){ const g=Ing.rowGrams(old), gi=s.row.units.findIndex(u=>u.l==="g"); if(g!=null&&gi>=0){ s.row.u=gi; s.row.q=Math.round(g); } } }
+    render(); const p=$("#panel"); if(p) p.scrollTop=0; },
+  pickSplit(){ const s=top(); const lines=Ing.splitMeal(s.q); const l={type:"list", mode:"meal", text:s.q, rows:[], misses:[], date:s.date, slot:s.slot, eaten:s.eaten, skipped:0};
+    parseInto(l, lines); ui.sheets[ui.sheets.length-1]=l; render(); },
   seedStarter(){ const T=window.STARTER; let n=0;
     T.exercises.forEach(e=>{ if(!S.ex[e.id]){ Sync.put("exercises/"+e.id, clone(e)); n++; } });
     T.foods.forEach(f=>{ if(!S.foods[f.id]){ Sync.put("foods/"+f.id, clone(f)); n++; } });
@@ -568,12 +603,14 @@ const A = {
     r.done=!r.done; queueSave("days/"+ui.date); render(); },
   addSet(b){ const rows=ensureLog(ui.date,b.dataset.ex); const prev=rows[rows.length-1]; rows.push({w:prev?prev.w:"",r:"",done:false}); queueSave("days/"+ui.date); render(); },
   rmSet(b){ const rows=ensureLog(ui.date,b.dataset.ex); rows.pop(); queueSave("days/"+ui.date); render(); },
-  addFood(b){ pushSheet({type:"foodPick", date:ui.date, slot:b.dataset.slot, q:"", sel:null, qty:"", eaten:ui.date<TODAY()}); },
+  addFood(b){ ensureFull(); pushSheet({type:"pick", target:"day", date:ui.date, slot:b.dataset.slot, q:"", sel:null, row:null, eaten:ui.date<=TODAY()}); },
   pickSlot(b){ top().slot=b.dataset.v; render(); },
-  pickFood(b){ const s=top(), f=S.foods[b.dataset.id]; s.sel=f.id; s.qty=String(f.size); render(); $("#panel").scrollTop=0; },
-  confirmPick(){ const s=top(), f=S.foods[s.sel]; const q=num(s.qty); if(!f||q<=0){ toast("Enter an amount above zero."); return; }
-    const d=dayMut(s.date); d.meals.push({ id:rid("m"), slot:s.slot, foodId:f.id, name:f.name, emoji:foodEmoji(f), size:num(f.size)||1, unit:f.unit, kcal:num(f.kcal), p:num(f.p), c:num(f.c), f:num(f.f), qty:q, eaten:!!s.eaten });
-    queueSave("days/"+s.date); s.sel=null; s.qty=""; s.q=""; toast(`Added ${f.name}`); render(); },
+  confirmPick(){ const s=top(), row=s.row; if(!row||num(row.q)<=0){ toast("Enter an amount above zero."); return; }
+    if(s.target==="day"){ dayMut(s.date).meals.push(mealFromRow(row, s.slot, s.eaten)); queueSave("days/"+s.date); toast(`Added ${row.name}`); s.sel=null; s.row=null; s.q=""; render(); return; }
+    ui.sheets.pop(); const l=top(); row.approx=false;
+    if(s.rowIdx!=null){ const old=l.rows[s.rowIdx]; if(old&&old.line) row.line=old.line; l.rows[s.rowIdx]=row; }
+    else { l.rows.push(row); if(s.missIdx!=null){ const m=l.misses.splice(s.missIdx,1)[0]; if(m) row.line=m.line; } }
+    render(); },
   newFoodFromPick(){ pushSheet({type:"food", id:null, draft:{name:top().q||"", size:100, unit:"g", kcal:"", p:"", c:"", f:""}, fromPick:true}); },
   mealItem(b){ pushSheet({type:"mealItem", date:ui.date, id:b.dataset.id}); },
   eat(b){ const s=top(); const date=s&&s.type==="mealItem"?s.date:ui.date; const m=dayMut(date).meals.find(x=>x.id===b.dataset.id); if(!m) return; m.eaten=!m.eaten; queueSave("days/"+date); render(); },
@@ -586,14 +623,14 @@ const A = {
   closeSheet(){ popSheet(); },
   // library
   newFood(){ pushSheet({type:"food", id:null, draft:{name:"", size:100, unit:"g", kcal:"", p:"", c:"", f:""}}); },
-  editFood(b){ const f=S.foods[b.dataset.id]; pushSheet({type:"food", id:f.id, draft:clone(f)}); },
+  editFood(b){ const f=S.foods[b.dataset.id]; if(f.recipe){ openRecipe(f); return; } pushSheet({type:"food", id:f.id, draft:clone(f)}); },
   async saveFood(){ const s=top(), d=s.draft;
     if(!String(d.name||"").trim()){ toast("Give the food a name."); return; } if(num(d.size)<=0){ toast("Serving size needs to be above zero."); return; }
     const id=s.id||rid("f"); const body={ id, name:String(d.name).trim(), size:num(d.size), unit:d.unit||"g", kcal:num(d.kcal), p:num(d.p), c:num(d.c), f:num(d.f) };
     if(d.fibre!==""&&d.fibre!=null) body.fibre=num(d.fibre); if(d.sodium!==""&&d.sodium!=null) body.sodium=num(d.sodium);
     if(d.emoji) body.emoji=String(d.emoji).trim(); if(d.recipe) body.recipe=d.recipe;
     if(await saveDoc("foods/"+id, body)){ S.foods[id]=body; ui.sheets.pop(); const under=top();
-      if(s.fromPick && under && under.type==="foodPick"){ under.sel=id; under.qty=String(body.size); }
+      if(s.fromPick && under && under.type==="pick"){ const src=Ing.foodSource(body); under.sel=src.ref; under.src=src; under.row=Ing.makeRow(src); }
       toast("Food saved"); render(); } },
   async delFood(){ const s=top(), key="food:"+s.id; if(ui.confirm!==key){ ui.confirm=key; render(); return; }
     if(await delDoc("foods/"+s.id)){ delete S.foods[s.id]; popSheet(); toast("Food deleted"); } },
@@ -624,16 +661,19 @@ const A = {
   async delWorkout(){ const s=top(), key="wo:"+s.id; if(ui.confirm!==key){ ui.confirm=key; render(); return; }
     if(await delDoc("workouts/"+s.id)){ delete S.wo[s.id]; popSheet(); toast("Workout deleted"); } }
 };
+function switchUnit(row, ni){ const o=row.units[row.u], n=row.units[ni]; if(!n) return;
+  if(o&&o.g!=null&&n.g!=null&&num(row.q)>0){ const g=num(row.q)*o.g; row.q=r1(g/n.g); } else if(o&&n&&o.f&&n.f){ row.q=r1(num(row.q)*o.f/n.f); }
+  row.u=ni; }
 function addToWorkout(w, exId){ const e=S.ex[exId]; if(!e) return; w.draft.items=w.draft.items||[]; w.draft.items.push({ exId, sets:e.sets||3, reps:e.reps||"", weight:0, rest:e.rest||90 }); }
 
 const IN = {
-  async aiFiles(el, ev){ if(ev.type!=="change") return; const s=top(); const files=[...(el.files||[])].slice(0, 6-(s.images||[]).length);
-    for(const f of files){ try{ s.images.push(await shrinkImage(f)); }catch(e){ toast("Couldn't read one of those images."); } }
-    el.value=""; s.error=""; render(); },
-  aiText(el){ top().text=el.value; },
-  aiField(el, ev){ const s=top(); s[el.dataset.k]=el.value; if(el.dataset.rerender && ev.type==="change") render(); },
-  aiGrams(el, ev){ top().items[+el.dataset.i].grams=el.value; if(ev.type==="change") render(); },
-  aiEaten(el){ top().eaten=el.checked; },
+  listField(el, ev){ const s=top(); s[el.dataset.k]=el.value; if(el.dataset.rerender) render(); },
+  listPaste(el){ top().paste=el.value; },
+  listEaten(el){ top().eaten=el.checked; },
+  rowQ(el){ const r=top().rows[+el.dataset.i]; r.q=el.value; r.approx=false; render(); },
+  rowU(el, ev){ if(ev.type!=="change") return; const r=top().rows[+el.dataset.i]; switchUnit(r, +el.value); r.approx=false; render(); },
+  pickRowQ(el){ const s=top(); s.row.q=el.value; const p=$("#pk-prev"); if(p) p.innerHTML=preview(Ing.rowMacros(s.row)); },
+  pickRowU(el, ev){ if(ev.type!=="change") return; const s=top(); switchUnit(s.row, +el.value); render(); },
   setWorkout(el, ev){ if(ev.type!=="change") return; const d=dayMut(ui.date); if(el.value==="") delete d.workout; else d.workout=el.value; queueSave("days/"+ui.date); render(); },
   setVal(el){ const {ex,i,k}=el.dataset; const rows=ensureLog(ui.date,ex); rows[+i][k]=el.value.trim(); queueSave("days/"+ui.date); },
   split(el, ev){ if(ev.type!=="change") return; S.settings.split=S.settings.split||{}; S.settings.split[el.dataset.i]=el.value; queueSave("settings/main"); render(); },
@@ -641,7 +681,6 @@ const IN = {
   exQ(el){ ui.exQ=el.value; render(); },
   foodQ(el){ ui.foodQ=el.value; render(); },
   pickQ(el){ top().q=el.value; render(); },
-  pickQty(el){ const s=top(); s.qty=el.value; const f=S.foods[s.sel]; const p=$("#fp-prev"); if(f&&p) p.innerHTML=preview(foodMacros(f,num(s.qty))); },
   pickEaten(el){ top().eaten=el.checked; },
   mealQty(el, ev){ const s=top(); const m=dayMut(s.date).meals.find(x=>x.id===s.id); if(!m) return; m.qty=num(el.value); $("#mi-prev").innerHTML=preview(macrosOf(m)); queueSave("days/"+s.date); if(ev.type==="change") render(); },
   draft(el){ const s=top(); s.draft[el.dataset.k]=el.value; if(s.type==="food"){ const c=$("#fd-check"); if(c) c.innerHTML=foodCheck(s.draft); } },
@@ -650,12 +689,15 @@ const IN = {
 };
 document.addEventListener("click", ev=>{ const b=ev.target.closest("[data-act]"); if(!b||b.disabled) return; const f=A[b.dataset.act]; if(f){ ev.preventDefault(); f(b); } });
 ["input","change"].forEach(t=>document.addEventListener(t, ev=>{ const el=ev.target; const k=el.dataset&&el.dataset.in; if(k&&IN[k]){
-  if(t==="change" && ["exQ","foodQ","pickQ","xpQ","setVal","pickQty","draft","witem","pickEaten"].includes(k)) return; IN[k](el, ev); } }));
+  if(t==="change" && ["exQ","foodQ","pickQ","xpQ","setVal","pickRowQ","rowQ","listPaste","draft","witem","pickEaten","listEaten"].includes(k)) return; IN[k](el, ev); } }));
 document.addEventListener("submit", ev=>{
   if(ev.target.id!=="askform") return; ev.preventDefault();
   const el=$("#ask"), q=el.value.trim(); if(!q) { el.focus(); return; }
-  el.value=""; el.blur(); $("#askgo").classList.remove("go");
-  pushSheet({type:"foodPick", date:ui.date, slot:guessSlot(), q, sel:null, qty:"", eaten:true});
+  el.value=""; el.blur(); $("#askgo").classList.remove("go"); ensureFull();
+  const parts=Ing.splitMeal(q), l={type:"list", mode:"meal", text:q, rows:[], misses:[], date:ui.date, slot:guessSlot(), eaten:ui.date<=TODAY(), skipped:0};
+  parseInto(l, parts);
+  if(!l.rows.length || (parts.length===1 && l.rows[0].approx)) pushSheet({type:"pick", target:"day", date:ui.date, slot:l.slot, q, sel:null, row:null, eaten:l.eaten});
+  else pushSheet(l);
 });
 document.addEventListener("input", ev=>{ if(ev.target.id==="ask") $("#askgo").classList.toggle("go", !!ev.target.value.trim()); });
 document.addEventListener("keydown", ev=>{ if(ev.key==="Escape"&&top()) popSheet(); });
@@ -668,6 +710,7 @@ let authed=false;
   loadS();
   try{ await Sync.init(); }catch(e){ console.error(e); }
   authed=!!Sync.status().user; loadS(); render();
+  const idle=window.requestIdleCallback||(f=>setTimeout(f,1500)); idle(()=>Ing.loadFull().catch(()=>{}));
 })();
 if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
 })();
