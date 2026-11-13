@@ -123,7 +123,7 @@ window.Progress = (function () {
     // calorie decision: needs a trustworthy trend, enough logging, and the current target to have had time to work
     const lastChange = (settings.kcalHistory || []).slice(-1)[0], sinceChange = lastChange ? diff(lastChange.date, upto) : 99;
     const M = maintenance(days, log, upto);
-    if (M.ok) say("Maintenance", "info", `Your measured maintenance is about ${Math.round(M.kcal / 10) * 10} kcal a day.`, { calc: M.calc + ` (${M.days} logged days). This includes your training and runs, so it's more accurate than any formula.` });
+    if (false) say("Maintenance", "info", `Your measured maintenance is about ${Math.round(M.kcal / 10) * 10} kcal a day.`, { calc: M.calc + ` (${M.days} logged days). This includes your training and runs, so it's more accurate than any formula.` });
     if (R.ok && rateVerdict !== "on") {
       const I3 = intake(days, add(upto, -20), upto);
       const why = []; if (I3.days < 10) why.push(`only ${I3.days} fully logged days in the last 3 weeks`); if (sinceChange < 14) why.push(`your calorie target changed ${sinceChange} days ago, so it hasn't had two weeks to show up on the scales`);

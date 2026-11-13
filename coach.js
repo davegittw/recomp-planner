@@ -268,7 +268,9 @@ window.Coach = (function () {
     targets = targets.filter(m => !R.pain.includes(m));
     // recovery and weekly volume checks on the targets
     const recov = {}; targets.forEach(m => recov[m] = recovery(H, m, today, sore));
-    const tired = targets.filter(m => recov[m] < 0.6 && H.muscle[m].last);
+    const liftedOn = new Set(H.sessions.map(x => x.date));
+    // a run on its own shows up in the run note below, not as "trained"
+    const tired = targets.filter(m => recov[m] < 0.6 && H.muscle[m].last && liftedOn.has(H.muscle[m].last));
     const lastRun = (H.runs || []).filter(r => (pd(today) - pd(r.date)) / dayMs <= 1).pop();
     if (lastRun && targets.some(m => ["quads", "hams", "calves"].includes(m))) warnings.push({ kind: "run", text: `You ran ${daysAgo(today, lastRun.date)}${lastRun.hard ? " (a hard run)" : ""}, so your legs aren't fully fresh. Leg sets are counted with that in mind.` });
     if (input.deload) reasons.unshift("Deload week: about half the usual sets, stopping 3 reps short, so you recover and come back stronger.");
@@ -391,7 +393,9 @@ window.Coach = (function () {
     if (goal === "condition") reasons.push("Conditioning focus: shorter rests and higher reps.");
     if (goal === "light") reasons.push("Light session: fewer sets, well short of failure.");
     if (est > minutes + 7) warnings.push({ kind: "time", text: `This comes out at about ${est} minutes. Remove an exercise if you're short on time.` });
-    const title = R.focus && exPool.get(R.focus) ? `${exPool.get(R.focus).name} focus` : autoNote ? autoNote.split(":")[0] : listNames(targets.length > 4 ? summariseTargets(targets) : targets);
+    const NAMED = [["Legs", ["quads", "glutes", "hams", "calves"]], ["Push", ["chest", "frontdelt", "sidedelt", "triceps"]], ["Pull", ["lats", "upperback", "reardelt", "biceps"]], ["Arms", ["biceps", "triceps"]], ["Core", ["abs", "obliques"]], ["Shoulders", ["frontdelt", "sidedelt", "reardelt"]], ["Back", ["lats", "upperback"]], ["Upper body", ["chest", "lats", "upperback", "frontdelt", "sidedelt", "biceps", "triceps"]]];
+    const named = NAMED.find(([, ms]) => ms.length === targets.length && ms.every(m => targets.includes(m)));
+    const title = R.focus && exPool.get(R.focus) ? `${exPool.get(R.focus).name} focus` : autoNote ? autoNote.split(":")[0] : named ? named[0] : listNames(targets.length > 4 ? summariseTargets(targets) : targets);
     // warm-up: two or three drills for the joints this session uses (mobility drills come from your saved posts)
     const lower = targets.some(m => ["quads", "glutes", "hams", "adductors", "lowback", "calves"].includes(m)), upper = targets.some(m => ["chest", "lats", "upperback", "frontdelt", "sidedelt", "reardelt", "triceps", "biceps", "traps"].includes(m));
     const L = id => (lib().find(x => x.id === id) || {});

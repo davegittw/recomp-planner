@@ -49,7 +49,9 @@ const ui = { tab: lsGet("rp-tab","today"), date: TODAY(), week: monday(TODAY()),
 function loadS(){
   S.ex=Sync.all("exercises"); S.foods=Sync.all("foods"); S.wo=Sync.all("workouts"); S.days=Sync.all("days");
   const st=Sync.get("settings/main")||{};
-  S.settings={ targets:Object.assign({kcal:2400,protein:160,carbs:260,fat:70}, st.targets||{}), split:Object.assign({}, st.split||{}), profile:Object.assign({dbMax:25,bbMax:90,dbStep:2,bbStep:2.5,typicalMin:45,equipment:EQUIP.slice()}, st.profile||{}), favEx:st.favEx||[] };
+  S.settings=Object.assign({}, st, { targets:Object.assign({kcal:2400,protein:160,carbs:260,fat:70}, st.targets||{}), split:Object.assign({}, st.split||{}),
+    profile:Object.assign({dbMax:25,bbMax:90,dbStep:2,bbStep:2.5,typicalMin:45,equipment:EQUIP.slice(),heightCm:180.3,sex:"male",activity:1.55,wUnit:"st",weeklySessions:5,weeklyRuns:2}, st.profile||{}),
+    favEx:st.favEx||[], goal:Object.assign({phase:"recomp"}, st.goal||{}), kcalHistory:st.kcalHistory||[], swapOut:st.swapOut||{} });
 }
 function bodyFor(path){
   if(path==="settings/main") return clone(S.settings);
@@ -136,6 +138,7 @@ function vToday(){
     right:`${isToday?"":`<button class="btn ghost" data-act="goToday">Today</button>`}<button class="iconbtn" data-act="day" data-n="1" aria-label="Next day">${ICON.right}</button>` });
   h+=`<div class="stack">`;
   if(date>=addDays(TODAY(),-1)) h+=coachCard(date);
+  h+=checkinStrip(date);
   if(!Object.keys(S.ex).length && !Object.keys(S.foods).length) h+=welcomeCard();
   const pe=Math.min(100,t.eat.kcal/T.kcal*100), pp=Math.min(100,t.plan.kcal/T.kcal*100);
   const chip=(k,lab,v,tgt)=>`<span class="mchip ${v>tgt*1.08?"over":""}"><i style="background:var(--${k})"></i><b>${n0(v)}</b><span style="opacity:.75">/${n0(tgt)}g</span> ${lab}</span>`;
@@ -423,6 +426,9 @@ function renderSheet(){
   else if(s.type==="body"){ h+=renderBody(s); }
   else if(s.type==="live"){ h+=renderLive(s); }
   else if(s.type==="liveDone"){ h+=renderLiveDone(s); }
+  else if(s.type==="checkin"){ h+=renderCheckin(s); }
+  else if(s.type==="run"){ h+=renderRun(s); }
+  else if(s.type==="photo"){ h+=renderPhoto(s); }
   else if(s.type==="ideas"){ h+=renderIdeas(s); }
   else if(s.type==="exPick"){
     h+=sheetHead("Add exercise", `<button class="btn ghost" data-act="newExFromPick">+ New</button>`)+`<div class="sbody">
@@ -617,11 +623,11 @@ function render(){
   const a=document.activeElement, fid=a&&a.id, sel=a&&("selectionStart" in a)?[a.selectionStart,a.selectionEnd]:null;
   const panelScroll=$("#panel").scrollTop;
   const st=Sync.status(), gate=!st.configured||!st.user;
-  const views={today:vToday, week:vWeek, train:vTrain, food:vFood};
+  const views={today:vToday, week:vWeek, train:vTrain, food:vFood, progress:vProgress};
   $("#app").innerHTML= !st.configured ? vSetup() : !st.user ? vLogin() : (views[ui.tab]||vToday)();
   $("#dock").hidden=gate; if(gate) ui.sheets=[];
   $("#askform").hidden = ui.tab!=="today"; document.body.classList.toggle("no-ask", ui.tab!=="today");
-  $("#tabs").innerHTML=[["today","Today"],["week","Week"],["train","Train"],["food","Food"]].map(([k,l])=>`<button class="${ui.tab===k?"on":""}" data-act="tab" data-v="${k}" aria-label="${l}" aria-current="${ui.tab===k?"page":"false"}">${ICON[k]}<span>${l}</span></button>`).join("");
+  $("#tabs").innerHTML=[["today","Today"],["week","Week"],["train","Train"],["food","Food"],["progress","Progress"]].map(([k,l])=>`<button class="${ui.tab===k?"on":""}" data-act="tab" data-v="${k}" aria-label="${l}" aria-current="${ui.tab===k?"page":"false"}">${ICON[k]}<span>${l}</span></button>`).join("");
   renderSheet(); $("#panel").scrollTop=panelScroll;
   if(fid){ const e=document.getElementById(fid); if(e){ e.focus({preventScroll:true}); try{ if(sel&&sel[0]!=null) e.setSelectionRange(sel[0],sel[1]); }catch(_){} } }
   status();
@@ -795,7 +801,7 @@ const IN = {
 };
 document.addEventListener("click", ev=>{ const b=ev.target.closest("[data-act]"); if(!b||b.disabled) return; const f=A[b.dataset.act]; if(f){ ev.preventDefault(); f(b); } });
 ["input","change"].forEach(t=>document.addEventListener(t, ev=>{ const el=ev.target; const k=el.dataset&&el.dataset.in; if(k&&IN[k]){
-  if(t==="change" && ["exQ","foodQ","pickQ","xpQ","libQ","ideaQ","setVal","pickRowQ","rowQ","listPaste","draft","witem","pickEaten","listEaten","genQ","genItem","genSwapQ","prof","liveVal"].includes(k)) return; IN[k](el, ev); } }));
+  if(t==="change" && ["exQ","foodQ","pickQ","xpQ","libQ","ideaQ","setVal","pickRowQ","rowQ","listPaste","draft","witem","pickEaten","listEaten","genQ","genItem","genSwapQ","prof","liveVal","ckWeight","ckBody","runF","goalW","goalWaist"].includes(k)) return; IN[k](el, ev); } }));
 document.addEventListener("submit", ev=>{
   if(ev.target.id!=="askform") return; ev.preventDefault();
   const el=$("#ask"), q=el.value.trim(); if(!q) { el.focus(); return; }
@@ -822,8 +828,9 @@ function demoUrl(name){ return "https://www.youtube.com/results?search_query="+e
 function runGen(seed, text){
   const R=Coach.parse(text!=null?text:ui.gen.text, {muscles:ui.gen.muscles});
   if(!R.minutes) R.minutes=ui.gen.minutes||profile().typicalMin||45;
-  const checkin = ui.gen.feel==="tired"?{energy:"low"}:null;
-  const g=Coach.generate(genInput({ request:R, checkin, seed: seed || (ui.date+"|"+R.text+"|"+Date.now()) }));
+  const dc=day(ui.date).checkin||{}, checkin = (ui.gen.feel==="tired"||dc.energy==="low"||dc.sleep==="poor")?{energy:"low"}:null;
+  const deload = !!(S.settings.deloadUntil && ui.date>=(S.settings.deloadFrom||"") && ui.date<=S.settings.deloadUntil);
+  const g=Coach.generate(genInput({ request:R, checkin, deload, seed: seed || (ui.date+"|"+R.text+"|"+Date.now()) }));
   g.feel=ui.gen.feel; return g;
 }
 function genItemToWorkout(it){ return { exId:it.exId, sets:it.sets, reps:String(it.reps||""), weight:it.weight||0, rest:it.rest, rir:it.rir, aim:it.aim||it.note||"", last:it.last||null, timed:!!it.timed }; }
@@ -1108,6 +1115,304 @@ Object.assign(IN, {
   liveRir(el, ev){ if(ev.type!=="change") return; const s=top(), it=liveItems(s.date)[s.idx], rows=ensureLog(s.date,it.exId); rows[+el.dataset.i].rir=el.value; queueSave("days/"+s.date); }
 });
 document.addEventListener("submit", ev=>{ if(ev.target.id!=="genform") return; ev.preventDefault(); A.genGo(); });
+
+/* ---------- check-ins, progress dashboard, weekly review ---------- */
+ICON.progress='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.5 19.5h17"/><path d="M5 15.5l4.5-4.5 3.5 3 6-7"/><circle cx="19" cy="7" r="1.4" fill="currentColor"/></svg>';
+const LB=0.45359237;
+const P_ = () => S.settings.profile;
+const stMode = () => (P_().wUnit||"st")==="st";
+function fmtW(kg, short){ if(!(kg>0)) return "–"; if(!stMode()) return (Math.round(kg*10)/10).toFixed(1)+(short?"":" kg");
+  const lb=kg/LB, st=Math.floor(lb/14), r=Math.round((lb-st*14)*10)/10; return r>=14 ? (st+1)+(short?"st 0":" st 0 lb") : st+(short?"st ":" st ")+(r%1?r.toFixed(1):r)+(short?"":" lb"); }
+function fmtDW(kg){ if(!stMode()) return (kg>0?"+":kg<0?"−":"")+Math.abs(Math.round(kg*10)/10).toFixed(1)+" kg"; const lb=kg/LB; return (lb>0?"+":lb<0?"−":"")+Math.abs(Math.round(lb*10)/10).toFixed(1)+" lb"; }
+const wUnitVal = kg => stMode()? kg/LB : kg; // chart units: lb or kg
+const wAxis = v => stMode()? fmtW(v*LB,true) : (Math.round(v*10)/10).toString();
+ui.prRange = lsGet("rp-prr","3M"); ui.revWeek = null; ui.lift = null; ui.photos = null;
+
+/* charts: small SVGs with tap-to-read tooltips */
+const CH = {};
+function niceTicks(lo, hi, n){ const span=Math.max(hi-lo,1e-9), raw=span/n, mag=Math.pow(10,Math.floor(Math.log10(raw))); const step=[1,2,2.5,5,10].map(x=>x*mag).find(x=>x>=raw)||10*mag;
+  const out=[]; for(let v=Math.ceil(lo/step)*step; v<=hi+1e-9; v+=step) out.push(Math.round(v*1000)/1000); return out; }
+const pd2 = s => parse(s).getTime();
+function chartLine(o){
+  // o: {id, series:[{pts:[{d,y}], kind:'line'|'dots'|'dash', cls}], from, to, fmt, target:{y,label}, tips:[{d,t}]}
+  const W=340,H=170,L=44,R=10,T=12,B=22, all=o.series.flatMap(s=>s.pts.map(p=>p.y)).concat(o.target?[o.target.y]:[]);
+  if(!all.length) return `<div class="empty">Nothing logged in this period yet.</div>`;
+  let lo=Math.min(...all), hi=Math.max(...all); const padY=(hi-lo)*0.12||Math.max(0.5,Math.abs(hi)*0.02); lo-=padY; hi+=padY;
+  const firstD=o.series.flatMap(s=>s.pts.map(p=>p.d)).sort()[0]; if(firstD&&firstD>o.from) o.from=firstD;
+  const t0=pd2(o.from), t1=Math.max(pd2(o.to), t0+86400000), X=d=>L+(pd2(d)-t0)/(t1-t0)*(W-L-R), Y=v=>T+(hi-v)/(hi-lo)*(H-T-B);
+  const ticks=niceTicks(lo,hi,3);
+  let g=ticks.map(v=>`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L-6}" y="${Y(v)+3.5}" text-anchor="end">${esc((o.fmt||String)(v))}</text>`).join("");
+  const mid=addDays(o.from, Math.round((t1-t0)/86400000/2));
+  g+=[o.from, mid, o.to].map((d,i)=>`<text x="${X(d)}" y="${H-6}" text-anchor="${["start","middle","end"][i]}">${parse(d).getDate()} ${MON[parse(d).getMonth()]}</text>`).join("");
+  if(o.target) g+=`<line x1="${L}" x2="${W-R}" y1="${Y(o.target.y)}" y2="${Y(o.target.y)}" class="tgt"/><text x="${W-R}" y="${Y(o.target.y)-4}" text-anchor="end" class="tl">${esc(o.target.label)}</text>`;
+  for(const s of o.series){ if(!s.pts.length) continue;
+    if(s.kind==="dots") g+=s.pts.map(p=>`<circle cx="${X(p.d)}" cy="${Y(p.y)}" r="${s.r||2.6}" class="${s.cls||"dot"}"/>`).join("");
+    else { const dd=s.pts.map((p,i)=>(i?"L":"M")+X(p.d).toFixed(1)+" "+Y(p.y).toFixed(1)).join(" "); g+=`<path d="${dd}" class="${s.cls||"ln"} ${s.kind==="dash"?"dash":""}"/>`;
+      if(s.pts.length===1||s.endDot) { const p=s.pts[s.pts.length-1]; g+=`<circle cx="${X(p.d)}" cy="${Y(p.y)}" r="4" class="${s.cls||"ln"}-end"/>`; } } }
+  CH[o.id]={ kind:"line", L, R, W, t0, t1, tips:(o.tips||[]).map(t=>({x:X(t.d), t:t.t})) };
+  return `<div class="chart"><div class="ctip" id="${o.id}-tip" aria-live="polite">${esc(o.hint||"Tap the chart to read a value")}</div><svg class="ch" viewBox="0 0 ${W} ${H}" data-chart="${o.id}" role="img" aria-label="${esc(o.label||"")}">${g}<line class="rule" id="${o.id}-rule" x1="0" x2="0" y1="${T}" y2="${H-B}" style="opacity:0"/></svg></div>`;
+}
+function chartBars(o){
+  // o: {id, bars:[{label, v, tip}], target:{y,label}, fmt}
+  const W=340,H=150,L=40,R=8,T=12,B=22, vals=o.bars.map(b=>b.v||0).concat(o.target?[o.target.y]:[]);
+  if(!o.bars.some(b=>b.v)) return `<div class="empty">Nothing logged in this period yet.</div>`;
+  { const f=o.bars.findIndex(b=>b.v); o.bars=o.bars.slice(Math.max(0,Math.min(f,o.bars.length-4))); }
+  const hi=Math.max(...vals)*1.12||1, n=o.bars.length, bw=(W-L-R)/n, Y=v=>T+(hi-v)/hi*(H-T-B);
+  let g=niceTicks(0,hi,3).map(v=>`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" class="gl"/><text x="${L-6}" y="${Y(v)+3.5}" text-anchor="end">${esc((o.fmt||n0)(v))}</text>`).join("");
+  o.bars.forEach((b,i)=>{ const x=L+i*bw+2, w=Math.max(2,bw-4), y=Y(b.v||0), h=Math.max(0,H-B-y);
+    if(b.v) g+=`<path class="bar ${b.cls||""}" d="M${x} ${H-B}V${y+Math.min(4,h)}Q${x} ${y} ${x+Math.min(4,w/2)} ${y}H${x+w-Math.min(4,w/2)}Q${x+w} ${y} ${x+w} ${y+Math.min(4,h)}V${H-B}Z"/>`;
+    if(i%Math.ceil(n/6)===0||i===n-1) g+=`<text x="${x+w/2}" y="${H-6}" text-anchor="middle">${esc(b.label)}</text>`; });
+  if(o.target) g+=`<line x1="${L}" x2="${W-R}" y1="${Y(o.target.y)}" y2="${Y(o.target.y)}" class="tgt"/><text x="${W-R}" y="${Y(o.target.y)-4}" text-anchor="end" class="tl">${esc(o.target.label)}</text>`;
+  CH[o.id]={ kind:"bar", L, R, W, n, bw, tips:o.bars.map(b=>b.tip) };
+  return `<div class="chart"><div class="ctip" id="${o.id}-tip" aria-live="polite">${esc(o.hint||"Tap a bar to read it")}</div><svg class="ch" viewBox="0 0 ${W} ${H}" data-chart="${o.id}" role="img" aria-label="${esc(o.label||"")}">${g}<line class="rule" id="${o.id}-rule" x1="0" x2="0" y1="${T}" y2="${H-B}" style="opacity:0"/></svg></div>`;
+}
+function chartPoint(ev){
+  const svg=ev.target.closest&&ev.target.closest("svg.ch"); if(!svg) return; const c=CH[svg.dataset.chart]; if(!c) return;
+  const r=svg.getBoundingClientRect(), x=(ev.clientX-r.left)/r.width*c.W; let tip=null, rx=null;
+  if(c.kind==="bar"){ const i=Math.max(0,Math.min(c.n-1,Math.floor((x-c.L)/c.bw))); tip=c.tips[i]; rx=c.L+i*c.bw+c.bw/2; }
+  else if(c.tips.length){ let best=c.tips[0]; for(const t of c.tips) if(Math.abs(t.x-x)<Math.abs(best.x-x)) best=t; tip=best.t; rx=best.x; }
+  const te=document.getElementById(svg.dataset.chart+"-tip"), ru=document.getElementById(svg.dataset.chart+"-rule");
+  if(te&&tip) te.textContent=tip; if(ru&&rx!=null){ ru.setAttribute("x1",rx); ru.setAttribute("x2",rx); ru.style.opacity=1; }
+}
+document.addEventListener("pointerdown", chartPoint); document.addEventListener("pointermove", ev=>{ if(ev.buttons||ev.pointerType==="mouse") chartPoint(ev); });
+
+/* Today: quick check-in strip */
+function checkinStrip(date){
+  if(date>TODAY()) return "";
+  const d=day(date), b=d.body||{}, c=d.checkin||{}, runs=d.runs||[], km=runs.reduce((a,r)=>a+num(r.km),0);
+  const ch=(f,lab,val)=>`<button class="ckchip ${val?"on":""}" data-act="ckOpen" data-f="${f}"><span class="label">${lab}</span><b>${val||"Add"}</b></button>`;
+  return `<section class="ckstrip" aria-label="Daily check-in">${ch("weight","Weight",b.weight?fmtW(b.weight,true):"")}${ch("waist","Waist",b.waist?n1(b.waist)+" cm":"")}${ch("feel","How you feel",c.sleep||c.energy?[c.sleep&&{poor:"Poor",ok:"OK",good:"Good"}[c.sleep],c.energy&&{low:"Low",ok:"OK",high:"High"}[c.energy]].filter(Boolean).join(" · "):"")}${ch("run","Run",runs.length?n1(km)+" km":"")}</section>`;
+}
+function renderCheckin(s){
+  const d=day(s.date), b=d.body||{}, c=d.checkin||{};
+  let wIn;
+  if(stMode()){ const lb=b.weight?b.weight/LB:null, st=lb?Math.floor(lb/14):"", r=lb?Math.round((lb-st*14)*10)/10:"";
+    wIn=`<div class="grid2"><label class="field"><span class="label">Stone</span><input id="ck-st" inputmode="numeric" value="${esc(st)}" data-in="ckWeight" placeholder="12"></label><label class="field"><span class="label">Pounds</span><input id="ck-lb" inputmode="decimal" value="${esc(r)}" data-in="ckWeight" placeholder="6"></label></div>`; }
+  else wIn=`<label class="field"><span class="label">Kg</span><input id="ck-kg" inputmode="decimal" value="${esc(b.weight?Math.round(b.weight*10)/10:"")}" data-in="ckWeight" placeholder="79.0"></label>`;
+  const seg=(k,opts)=>`<div class="seg">${opts.map(([v,l])=>`<button class="${c[k]===v?"on":""}" data-act="ckSet" data-k="${k}" data-v="${v}">${l}</button>`).join("")}</div>`;
+  return sheetHead(`Check-in · ${esc(fmtDate(s.date))}`)+`<div class="sbody">
+    <div class="field"><span class="label">Body weight <button class="linkish" data-act="ckUnit">${stMode()?"use kg":"use st/lb"}</button></span>${wIn}
+      <span class="small muted">Weigh in most mornings, after the loo and before food. Day-to-day changes are mostly water; the trend line is what counts.</span></div>
+    <div class="grid2"><label class="field"><span class="label">Waist cm</span><input id="ck-waist" inputmode="decimal" value="${esc(b.waist||"")}" data-in="ckBody" data-k="waist" placeholder="at the navel"></label>
+      <label class="field"><span class="label">Body fat % (measured)</span><input id="ck-bf" inputmode="decimal" value="${esc(b.bf||"")}" data-in="ckBody" data-k="bf" placeholder="optional"></label></div>
+    <div class="small muted">Only enter body fat from an actual measurement (a scan, callipers or smart scales) and treat smart-scale numbers loosely. The app's own estimate comes from your waist and is labelled as an estimate.</div>
+    <div class="field"><span class="label">Sleep last night</span>${seg("sleep",[["poor","Poor"],["ok","OK"],["good","Good"]])}</div>
+    <div class="field"><span class="label">Energy</span>${seg("energy",[["low","Low"],["ok","OK"],["high","High"]])}</div>
+    <button class="btn primary block" data-act="closeSheet">Done</button></div>`;
+}
+function renderRun(s){
+  const d=day(s.date), runs=d.runs||[], f=s.f;
+  const pace = (km,min)=> km>0&&min>0 ? (()=>{ const p=min/km; return Math.floor(p)+":"+pad(Math.round((p%1)*60))+" /km"; })() : "";
+  return sheetHead(`Runs · ${esc(fmtDate(s.date))}`)+`<div class="sbody">
+    ${runs.length?`<div class="list">${runs.map((r,i)=>`<div class="li"><span class="main"><div class="nm">${n1(r.km)} km · ${esc(r.type||"easy")}</div><div class="sub">${r.min?`${n0(r.min)} min · ${pace(num(r.km),num(r.min))}`:""}${r.rpe?` · effort ${esc(r.rpe)}/10`:""}</div></span><button class="btn ghost danger" data-act="runDel" data-i="${i}">Remove</button></div>`).join("")}</div>`:""}
+    <div class="grid2"><label class="field"><span class="label">Distance km</span><input id="rn-km" inputmode="decimal" value="${esc(f.km)}" data-in="runF" data-k="km" placeholder="5"></label>
+      <label class="field"><span class="label">Time minutes</span><input id="rn-min" inputmode="decimal" value="${esc(f.min)}" data-in="runF" data-k="min" placeholder="28"></label></div>
+    <div class="field"><span class="label">Type</span><div class="seg">${["easy","long","tempo","intervals"].map(t=>`<button class="${f.type===t?"on":""}" data-act="runType" data-v="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join("")}</div></div>
+    <div class="field"><span class="label">How hard (1–10, optional)</span><input id="rn-rpe" inputmode="numeric" value="${esc(f.rpe)}" data-in="runF" data-k="rpe" placeholder="6"></div>
+    <div class="small muted">Hard runs count towards leg fatigue in the workout generator, so it won't stack a heavy leg session on top.</div>
+    <button class="btn primary block" data-act="runSave">Save run</button></div>`;
+}
+
+/* Progress tab */
+const RANGES=[["1M",30],["3M",91],["6M",182],["1Y",365],["All",null]];
+function vProgress(){
+  const today=TODAY(), log=Progress.bodyLog(S.days), tr=Progress.trend(log), rd=(RANGES.find(r=>r[0]===ui.prRange)||RANGES[1])[1];
+  const first=Object.keys(S.days).sort()[0]||today, from=rd?addDays(today,-rd+1):(first<today?first:addDays(today,-30)), G=S.settings.goal||{}, T=S.settings.targets;
+  let h=head({ eyebrow:"Trends, goals and your weekly check-in", title:"Progress" })+`<div class="stack">
+    <div class="seg" role="tablist" aria-label="Date range">${RANGES.map(([k])=>`<button class="${ui.prRange===k?"on":""}" data-act="prRange" data-v="${k}">${k}</button>`).join("")}</div>`;
+  h+=reviewCard();
+  h+=goalCard(log, tr);
+  // weight
+  const trR=tr.filter(p=>p.date>=from), R=Progress.rate(log, today, 21);
+  const nowT=tr.length?tr[tr.length-1].trend:null, startT=trR.length?trR[0].trend:null;
+  h+=`<section class="card"><div class="card-h"><h2>Body weight</h2><span class="spacer"></span><button class="btn ghost" data-act="ckOpen" data-f="weight">+ Weigh-in</button></div>
+    <div class="stats"><div class="stat"><div class="label">Trend now</div><div class="v sm">${nowT?fmtW(nowT,true):"–"}</div></div>
+      <div class="stat"><div class="label">Change (${esc(ui.prRange)})</div><div class="v sm">${nowT&&startT&&trR.length>1?fmtDW(nowT-startT):"–"}</div></div>
+      <div class="stat"><div class="label">Per week</div><div class="v sm">${R.ok?fmtDW(R.perWeek):"–"}</div></div></div>`;
+  if(trR.length){
+    h+=chartLine({ id:"cw", label:"Body weight and trend", from, to:today, fmt:wAxis,
+      series:[{pts:trR.map(p=>({d:p.date,y:wUnitVal(p.weight)})), kind:"dots", cls:"dot"},{pts:trR.map(p=>({d:p.date,y:wUnitVal(p.trend)})), kind:"line", cls:"ln", endDot:true}],
+      target: G.weight>0 && Math.abs(wUnitVal(G.weight)-wUnitVal(nowT||G.weight)) < (stMode()?30:14) ? {y:wUnitVal(G.weight), label:"Goal "+fmtW(G.weight,true)} : null,
+      tips:trR.map(p=>({d:p.date, t:`${fmtDate(p.date)}: ${fmtW(p.weight)} · trend ${fmtW(p.trend)}`})) });
+    h+=`<div class="legend small muted"><span><i class="lg-dot"></i>Daily weigh-in</span><span><i class="lg-line"></i>Trend</span>${G.weight>0?`<span><i class="lg-dash"></i>Goal</span>`:""}</div>
+      <div class="small muted">${R.ok?`The trend smooths out water and food swings (each weigh-in moves it 10%). Weekly rate is a straight line through ${R.n} weigh-ins over ${R.span} days.`:`Rate needs more data: ${esc(R.why)}.`}</div>`;
+  } else h+=`<div class="empty">No weigh-ins yet. Tap “+ Weigh-in” or the Weight chip on Today.</div>`;
+  h+=`</section>`;
+  h+=weeklyTable(log);
+  // waist & composition
+  const wa=log.filter(x=>x.waist>0&&x.date>=from), bfm=log.filter(x=>x.bf>0&&x.date>=from), Hc=P_().heightCm;
+  h+=`<section class="card"><div class="card-h"><h2>Waist and body fat</h2><span class="spacer"></span><button class="btn ghost" data-act="ckOpen" data-f="waist">+ Measure</button></div>`;
+  if(wa.length){ const last=wa[wa.length-1], firstW=wa[0];
+    h+=`<div class="stats"><div class="stat"><div class="label">Waist</div><div class="v sm">${n1(last.waist)} cm</div></div><div class="stat"><div class="label">Change</div><div class="v sm">${wa.length>1?(last.waist-firstW.waist>0?"+":"")+n1(last.waist-firstW.waist)+" cm":"–"}</div></div>
+      <div class="stat"><div class="label">Est. body fat</div><div class="v sm">${Hc?n1(Progress.rfm(Hc,last.waist))+"%":"–"}</div></div></div>`;
+    h+=chartLine({ id:"cwa", label:"Waist measurements", from, to:today, fmt:v=>n1(v), series:[{pts:wa.map(x=>({d:x.date,y:x.waist})), kind:"line", cls:"ln2", endDot:true},{pts:wa.map(x=>({d:x.date,y:x.waist})), kind:"dots", cls:"dot2", r:3.2}],
+      target: G.waist>0?{y:G.waist,label:"Goal "+n1(G.waist)+" cm"}:null, tips:wa.map(x=>({d:x.date,t:`${fmtDate(x.date)}: ${n1(x.waist)} cm`})) });
+    if(Hc){ const est=wa.map(x=>({d:x.date,y:Progress.rfm(Hc,x.waist)}));
+      h+=`<div class="label" style="margin-top:6px">Body fat %: estimated vs measured</div>`+chartLine({ id:"cbf", label:"Estimated and measured body fat", from, to:today, fmt:v=>n1(v)+"%",
+        series:[{pts:est, kind:"dash", cls:"est"},{pts:bfm.map(x=>({d:x.date,y:x.bf})), kind:"dots", cls:"meas", r:4}],
+        tips:est.map(p=>({d:p.d,t:`${fmtDate(p.d)}: estimate ${n1(p.y)}%`})).concat(bfm.map(x=>({d:x.date,t:`${fmtDate(x.date)}: measured ${n1(x.bf)}%`}))) });
+      const lw=Progress.lastOf(log,"weight"), e=Progress.rfm(Hc,last.waist);
+      h+=`<div class="legend small muted"><span><i class="lg-dash est"></i>Estimate (from waist)</span><span><i class="lg-dot meas"></i>Measured</span></div>
+        <div class="small muted">The estimate uses the relative fat mass formula (64 − 20 × height ÷ waist, for men): about ±4% for an individual, so watch its direction rather than the exact number.${lw?` At ${fmtW(lw.weight)} that's roughly ${n1(lw.weight*e/100)} kg of fat and ${n1(lw.weight*(1-e/100))} kg lean mass (estimated).`:""}</div>`; }
+  } else h+=`<div class="empty">No waist measurements yet. Once a week, at the navel, relaxed.</div>`;
+  h+=`</section>`;
+  h+=strengthCard(from, today)+trainingCard(today)+runningCard(today)+nutritionCard(today)+photosCard()+dataCard();
+  return h+`</div>`;
+}
+function reviewCard(){
+  const today=TODAY(), wk=ui.revWeek||addDays(monday(today),-7), r=Progress.review({ days:S.days, settings:S.settings, weekStart:wk, today, userEx:S.ex });
+  const ic={good:ICON.check, warn:"!", act:"→", info:"i"};
+  const lbl=wk===monday(today)?"This week so far":wk===addDays(monday(today),-7)?"Last week":"Week of "+fmtDate(wk).slice(4);
+  let h=`<section class="card review"><div class="card-h"><button class="iconbtn" data-act="revWeek" data-n="-7" aria-label="Previous week">${ICON.left}</button>
+    <div style="flex:1;text-align:center"><div class="label">Weekly check-in</div><h2>${esc(lbl)}</h2><div class="small muted">${fmtDate(wk).slice(4)} – ${fmtDate(addDays(wk,6)).slice(4)}</div></div>
+    <button class="iconbtn" data-act="revWeek" data-n="7" aria-label="Next week" ${wk>=monday(today)?"disabled":""}>${ICON.right}</button></div><div class="rlist">`;
+  for(const it of r.items){
+    h+=`<div class="ritem ${it.tone}"><span class="rico" aria-hidden="true">${ic[it.tone]||"i"}</span><div class="rbody"><div class="label">${esc(it.area)}<span class="sr"> (${({good:"on track",warn:"needs attention",act:"suggested change",info:"note"})[it.tone]||""})</span></div><div>${esc(it.text)}</div>
+      ${it.calc?`<details><summary>How I worked this out</summary><div class="small muted">${esc(it.calc)}</div></details>`:""}
+      ${it.action&&it.action.type==="kcal"?`<div class="setbtns"><button class="btn primary" data-act="prApplyKcal" data-v="${it.action.to}">Set calories to ${n0(it.action.to)}</button></div>`:""}
+      ${it.action&&it.action.type==="deload"?`<div class="setbtns"><button class="btn primary" data-act="prDeload">${S.settings.deloadUntil&&S.settings.deloadUntil>=today?"Light week is on":"Make next week a light week"}</button></div>`:""}</div></div>`; }
+  return h+`</div><div class="small muted">Suggestions only: nothing changes unless you tap it. Calories are never changed on one weigh-in; I use the trend across at least ten days and need most days' food logged.</div></section>`;
+}
+function goalCard(log, tr){
+  const G=S.settings.goal=S.settings.goal||{phase:"recomp"}, P=P_(), ph=Progress.PHASES[G.phase]||Progress.PHASES.recomp, today=TODAY();
+  const nowT=tr.length?tr[tr.length-1].trend:null, E=Progress.eta(log, G, today), M=Progress.maintenance(S.days, log, today), MF=Progress.mifflin(P, nowT||(G.weight||0));
+  let gw;
+  if(stMode()){ const lb=G.weight?G.weight/LB:null, st=lb?Math.floor(lb/14):"", r=lb?Math.round(lb-st*14):"";
+    gw=`<div class="grid2"><input id="g-st" inputmode="numeric" value="${esc(st)}" data-in="goalW" placeholder="st"><input id="g-lb" inputmode="decimal" value="${esc(r)}" data-in="goalW" placeholder="lb"></div>`; }
+  else gw=`<input id="g-kg" inputmode="decimal" value="${esc(G.weight?Math.round(G.weight*10)/10:"")}" data-in="goalW" placeholder="kg">`;
+  let h=`<section class="card"><div class="card-h"><h2>Goal</h2></div>
+    <div class="seg">${Object.entries(Progress.PHASES).map(([k,v])=>`<button class="${(G.phase||"recomp")===k?"on":""}" data-act="prPhase" data-v="${k}">${v.n}</button>`).join("")}</div>
+    <div class="small muted">${esc(ph.n)}: ${esc(ph.blurb)}.</div>
+    <div class="grid2"><div class="field"><span class="label">Target weight</span>${gw}</div><label class="field"><span class="label">Target waist cm</span><input id="g-waist" inputmode="decimal" value="${esc(G.waist||"")}" data-in="goalWaist" placeholder="e.g. 84"></label></div>`;
+  if(E&&G.weight>0){ h+=`<div class="gprog"><div><b>${fmtW(E.now,true)}</b> now</div><div class="gbar"><i style="width:${(()=>{ const st=log.find(x=>x.weight>0); const s0=st?st.weight:E.now; const tot=G.weight-s0; return tot? Math.max(0,Math.min(100,(E.now-s0)/tot*100)) : 100; })()}%"></i></div><div><b>${fmtW(G.weight,true)}</b> goal</div></div>
+    <div class="small">${E.done?"You're at your goal weight. Switch to Maintain, or set a new goal.":E.weeks?`${fmtDW(Math.abs(E.left)*(E.left<0?-1:1))} to go. At your current rate that's about ${Math.round(E.weeks)} weeks, around ${fmtDate(E.date).slice(4)}.`:`${fmtDW(E.left)} to go. Not moving towards it yet, so there's no date to show.`}</div>`; }
+  // calories
+  const P2=S.settings.targets, base = M.ok ? M.kcal : MF ? MF.tdee : null, sugg = base ? Math.round((base+ph.kcalAdj)/50)*50 : null;
+  h+=`<div class="label" style="margin-top:6px">Calories</div>`;
+  if(M.ok) h+=`<div class="small">Measured maintenance <b>${n0(Math.round(M.kcal/10)*10)} kcal</b> from your own logs: ${esc(M.calc)}.</div>`;
+  else if(MF) h+=`<div class="small">Starting estimate <b>${n0(Math.round(MF.tdee/10)*10)} kcal</b>: resting ${n0(MF.bmr)} kcal (Mifflin–St Jeor, using your age, height and weight) × ${MF.factor} for 5–6 training days. Once you've logged 4 weeks of food and weigh-ins, your measured number replaces this. (${esc(M.why)}.)</div>`;
+  else h+=`<div class="small muted">Add your age and height for a starting estimate. After about four weeks of logging, the app uses your own data instead.</div>`;
+  h+=`<div class="grid2"><label class="field"><span class="label">Age</span><input id="pf-age" inputmode="numeric" value="${esc(P.age||"")}" data-in="prof" data-k="age" placeholder="e.g. 38"></label><label class="field"><span class="label">Height cm</span><input id="pf-h" inputmode="decimal" value="${esc(P.heightCm||"")}" data-in="prof" data-k="heightCm"></label></div>`;
+  if(sugg&&Math.abs(sugg-P2.kcal)>=50) h+=`<div class="setbtns"><span class="small" style="flex:1">${esc(ph.n)} target: ${n0(base)} ${ph.kcalAdj>=0?"+":"−"} ${Math.abs(ph.kcalAdj)} = <b>${n0(sugg)} kcal</b> (now ${n0(P2.kcal)})</span><button class="btn" data-act="prApplyKcal" data-v="${sugg}">Use ${n0(sugg)}</button></div>`;
+  else if(sugg) h+=`<div class="small muted">Your ${n0(P2.kcal)} kcal target already fits this phase.</div>`;
+  return h+`</section>`;
+}
+function weeksBack(n, today){ const m=monday(today), out=[]; for(let i=n-1;i>=0;i--) out.push(addDays(m,-7*i)); return out; }
+function weeklyTable(log){
+  const today=TODAY(), wks=weeksBack(8,today).reverse();
+  const rows=wks.map(w=>{ const e=addDays(w,6)<today?addDays(w,6):today, ws=log.filter(x=>x.weight>0&&x.date>=w&&x.date<=e).map(x=>x.weight), I=Progress.intake(S.days,w,e), sess=Progress.sessionDays(S.days,w,e).length, km=Progress.runs(S.days,w,e).reduce((a,r)=>a+num(r.km),0);
+    return { w, avg:ws.length?ws.reduce((a,b)=>a+b,0)/ws.length:null, n:ws.length, I, sess, km }; });
+  if(!rows.some(r=>r.avg||r.I.days||r.sess||r.km)) return "";
+  return `<section class="card"><details><summary class="h2like">Week by week</summary><div class="tablewrap"><table class="wt"><thead><tr><th>Week</th><th>Avg weight</th><th>Change</th><th>kcal</th><th>Protein</th><th>Sessions</th><th>Run km</th></tr></thead><tbody>
+    ${rows.map((r,i)=>{ const prev=rows[i+1]; return `<tr><td>${fmtDate(r.w).slice(4)}</td><td>${r.avg?fmtW(r.avg,true)+`<span class="muted"> (${r.n})</span>`:"–"}</td><td>${r.avg&&prev&&prev.avg?fmtDW(r.avg-prev.avg):"–"}</td><td>${r.I.days?n0(r.I.kcal):"–"}</td><td>${r.I.days?n0(r.I.protein)+" g":"–"}</td><td>${r.sess}</td><td>${r.km?n1(r.km):"–"}</td></tr>`; }).join("")}
+    </tbody></table></div><div class="small muted">Weekly averages of weigh-ins (count in brackets), and average food on fully logged days.</div></details></section>`;
+}
+function strengthCard(from, today){
+  const lifts=Progress.topLifts(S.days, 8), pool=Coach.pool(S.ex); if(!lifts.length) return `<section class="card"><div class="card-h"><h2>Strength</h2></div><div class="empty">Log the same lift in two sessions and its estimated max shows up here.</div></section>`;
+  if(!ui.lift||!lifts.includes(ui.lift)) ui.lift=lifts[0];
+  const nW=Math.max(6,Math.min(52,Math.ceil((pd2(today)-pd2(from))/604800000)+1)), ws=Progress.bestE1rmByWeek(S.days, ui.lift, nW, today).filter(w=>w.v);
+  let h=`<section class="card"><div class="card-h"><h2>Strength</h2></div><div class="chips hscroll">${lifts.map(id=>`<button class="chip ${ui.lift===id?"on":""}" data-act="prLift" data-v="${esc(id)}">${esc((pool.get(id)||{}).name||id)}</button>`).join("")}</div>`;
+  if(ws.length){ const a=ws[0].v, b=ws[ws.length-1].v;
+    h+=`<div class="small">${esc((pool.get(ui.lift)||{}).name||"")}: best estimated max ${n1(b)} kg${ws.length>1?`, ${b>=a?"up":"down"} ${n1(Math.abs(b-a))} kg (${n1(Math.abs(b-a)/a*100)}%) over the period`:""}.</div>`;
+    h+=chartLine({ id:"cs", label:"Estimated max by week", from:ws[0].week, to:ws[ws.length-1].week, fmt:v=>n0(v), series:[{pts:ws.map(w=>({d:w.week,y:w.v})), kind:"line", cls:"ln", endDot:true},{pts:ws.map(w=>({d:w.week,y:w.v})), kind:"dots", cls:"dot3", r:3}], tips:ws.map(w=>({d:w.week,t:`Week of ${fmtDate(w.week).slice(4)}: ${n1(w.v)} kg estimated max`})) });
+    h+=`<div class="small muted">Best set each week, converted to an estimated one-rep max with the Epley formula (weight × (1 + reps ÷ 30)), counting reps in reserve when you log RIR.</div>`; }
+  // weekly sets by muscle group, last 6 weeks
+  const groups=[["Chest",["chest"]],["Back",["lats","upperback"]],["Shoulders",["frontdelt","sidedelt","reardelt"]],["Arms",["biceps","triceps"]],["Legs",["quads","hams","glutes","calves"]],["Core",["abs","obliques"]]];
+  const wks=weeksBack(6,today), W=wks.map(w=>Coach.weekly(S.days,S.ex,addDays(w,6)<today?addDays(w,6):today));
+  h+=`<div class="label" style="margin-top:6px">Weekly sets by muscle group</div><div class="tablewrap"><table class="wt"><thead><tr><th></th>${wks.map(w=>`<th>${parse(w).getDate()}/${parse(w).getMonth()+1}</th>`).join("")}</tr></thead><tbody>
+    ${groups.map(([n,ms])=>`<tr><td>${n}</td>${W.map(x=>{ const v=ms.reduce((a,m)=>a+x[m].sets,0); return `<td class="${v?"":"muted"}">${v?n0(v):"–"}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>
+    <div class="small muted">Columns are weeks starting on the date shown (the current week counts the last 7 days). Main muscles count a full set, helping muscles half.</div>`;
+  return h+`</section>`;
+}
+function trainingCard(today){
+  const wks=weeksBack(12,today), P=P_();
+  const bars=wks.map(w=>{ const e=addDays(w,6), s=Progress.sessionDays(S.days,w,e<today?e:today); return { label:parse(w).getDate()+"/"+(parse(w).getMonth()+1), v:s.length, sets:s.reduce((a,x)=>a+x.sets,0), w }; });
+  return `<section class="card"><div class="card-h"><h2>Training</h2></div>
+    <div class="label">Resistance sessions per week</div>${chartBars({ id:"ct", label:"Sessions per week", bars:bars.map(b=>({label:b.label, v:b.v, tip:`Week of ${fmtDate(b.w).slice(4)}: ${b.v} session${b.v===1?"":"s"}, ${b.sets} sets`})), target:{y:P.weeklySessions||5,label:"plan "+(P.weeklySessions||5)}, fmt:v=>n0(v) })}
+    <div class="label">Working sets per week</div>${chartBars({ id:"ctv", label:"Sets per week", bars:bars.map(b=>({label:b.label, v:b.sets, cls:"b2", tip:`Week of ${fmtDate(b.w).slice(4)}: ${b.sets} sets`})) })}
+    <div class="field"><span class="label">Planned sessions a week</span><div class="seg">${[3,4,5,6].map(n=>`<button class="${(P.weeklySessions||5)===n?"on":""}" data-act="profSess" data-v="${n}">${n}</button>`).join("")}</div></div></section>`;
+}
+function runningCard(today){
+  const wks=weeksBack(12,today), all=Progress.runs(S.days, addDays(monday(today),-77), today);
+  const bars=wks.map(w=>{ const rs=Progress.runs(S.days,w,addDays(w,6)), km=rs.reduce((a,r)=>a+num(r.km),0); return { label:parse(w).getDate()+"/"+(parse(w).getMonth()+1), v:km, tip:`Week of ${fmtDate(w).slice(4)}: ${n1(km)} km in ${rs.length} run${rs.length===1?"":"s"}`, cls:"b3" }; });
+  const recent=all.slice(-5).reverse(), pace=r=>num(r.km)>0&&num(r.min)>0?(()=>{ const p=num(r.min)/num(r.km); return Math.floor(p)+":"+pad(Math.round((p%1)*60))+" /km"; })():"";
+  return `<section class="card"><div class="card-h"><h2>Running</h2><span class="spacer"></span><button class="btn ghost" data-act="ckOpen" data-f="run">+ Run</button></div>
+    ${all.length?chartBars({ id:"cr", label:"Kilometres per week", bars, fmt:v=>n1(v) })+`<div class="list">${recent.map(r=>`<div class="li"><span class="main"><div class="nm">${n1(r.km)} km ${esc(r.type||"easy")}</div><div class="sub">${fmtDate(r.date)}${r.min?` · ${n0(r.min)} min · ${pace(r)}`:""}</div></span></div>`).join("")}</div>`:`<div class="empty">No runs logged yet. Add them from the Run chip on Today.</div>`}</section>`;
+}
+function nutritionCard(today){
+  const wks=weeksBack(12,today), T=S.settings.targets;
+  const W=wks.map(w=>{ const e=addDays(w,6)<today?addDays(w,6):today; return { w, I:Progress.intake(S.days,w,e) }; });
+  if(!W.some(x=>x.I.days)) return `<section class="card"><div class="card-h"><h2>Calories and protein</h2></div><div class="empty">Log food for a few days and weekly averages show up here.</div></section>`;
+  const lab=w=>parse(w).getDate()+"/"+(parse(w).getMonth()+1);
+  return `<section class="card"><div class="card-h"><h2>Calories and protein</h2></div>
+    <div class="label">Average kcal on logged days</div>${chartBars({ id:"ck", label:"Average calories per week", bars:W.map(x=>({label:lab(x.w), v:x.I.kcal||0, tip:x.I.days?`Week of ${fmtDate(x.w).slice(4)}: ${n0(x.I.kcal)} kcal average over ${x.I.days} day${x.I.days===1?"":"s"}`:`Week of ${fmtDate(x.w).slice(4)}: not enough logged`})), target:{y:T.kcal,label:"target "+n0(T.kcal)} })}
+    <div class="label">Average protein g</div>${chartBars({ id:"cp", label:"Average protein per week", bars:W.map(x=>({label:lab(x.w), v:x.I.protein||0, cls:"b4", tip:x.I.days?`Week of ${fmtDate(x.w).slice(4)}: ${n0(x.I.protein)} g protein average`:`Week of ${fmtDate(x.w).slice(4)}: not enough logged`})), target:{y:T.protein,label:"target "+n0(T.protein)+" g"} })}
+    <div class="small muted">Only days with at least 1,200 kcal marked as eaten count, so a half-logged day doesn't drag the average down.</div></section>`;
+}
+/* progress photos: kept on this phone only (IndexedDB), never uploaded */
+function pdb(){ return new Promise((res,rej)=>{ const r=indexedDB.open("rp-photos",1); r.onupgradeneeded=()=>r.result.createObjectStore("photos",{keyPath:"id"}); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+async function photosAll(){ try{ const db=await pdb(); return await new Promise(res=>{ const q=db.transaction("photos").objectStore("photos").getAll(); q.onsuccess=()=>res(q.result.sort((a,b)=>a.date<b.date?-1:1)); q.onerror=()=>res([]); }); }catch(e){ return []; } }
+async function photoPut(p){ const db=await pdb(); await new Promise((res,rej)=>{ const t=db.transaction("photos","readwrite"); t.objectStore("photos").put(p); t.oncomplete=res; t.onerror=()=>rej(t.error); }); }
+async function photoDel(id){ const db=await pdb(); await new Promise(res=>{ const t=db.transaction("photos","readwrite"); t.objectStore("photos").delete(id); t.oncomplete=res; }); }
+function shrink(file){ return new Promise((res,rej)=>{ const img=new Image(), u=URL.createObjectURL(file); img.onload=()=>{ const k=Math.min(1,1000/Math.max(img.width,img.height)), c=document.createElement("canvas"); c.width=Math.round(img.width*k); c.height=Math.round(img.height*k); c.getContext("2d").drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(u); res(c.toDataURL("image/jpeg",0.8)); }; img.onerror=rej; img.src=u; }); }
+function photosCard(){
+  if(ui.photos===null){ ui.photos=[]; photosAll().then(p=>{ ui.photos=p; if(ui.tab==="progress") render(); }); }
+  const ps=ui.photos||[];
+  return `<section class="card"><div class="card-h"><h2>Progress photos</h2><span class="spacer"></span><label class="btn ghost" for="ph-in">+ Photo</label><input id="ph-in" type="file" accept="image/*" data-in="photoAdd" hidden></div>
+    ${ps.length?`<div class="phgrid">${ps.slice().reverse().map(p=>`<button class="ph" data-act="photoOpen" data-id="${esc(p.id)}" aria-label="Photo from ${esc(fmtDate(p.date))}"><img src="${p.src}" alt=""><span>${esc(fmtDate(p.date).slice(4))}</span></button>`).join("")}</div>`:`<div class="empty">Same spot, same light, same time of day every 2–4 weeks makes them comparable.</div>`}
+    <div class="small muted">Photos stay on this phone only. They aren't uploaded or synced, and they aren't included in the export.</div></section>`;
+}
+function renderPhoto(s){
+  const ps=ui.photos||[], p=ps.find(x=>x.id===s.id), first=ps[0];
+  if(!p) return sheetHead("Photo")+`<div class="sbody"><div class="empty">Photo not found.</div></div>`;
+  return sheetHead(esc(fmtDate(p.date)))+`<div class="sbody">${first&&first.id!==p.id?`<div class="phcmp"><figure><img src="${first.src}" alt="First photo"><figcaption>${esc(fmtDate(first.date))}</figcaption></figure><figure><img src="${p.src}" alt="This photo"><figcaption>${esc(fmtDate(p.date))}</figcaption></figure></div>`:`<img class="phbig" src="${p.src}" alt="">`}
+    <button class="btn danger" data-act="photoDel" data-id="${esc(p.id)}">${ui.confirm==="ph:"+p.id?"Tap again to delete":"Delete photo"}</button></div>`;
+}
+function dataCard(){
+  return `<section class="card"><div class="card-h"><h2>Your data</h2></div>
+    <div class="small muted">Everything is stored in your own database and on this phone. To fix a past entry, open that day from the Week tab, or use the arrows on Today.</div>
+    <div class="setbtns"><button class="btn" data-act="exportJson">Everything (JSON)</button><button class="btn" data-act="exportCsv" data-v="workouts">Workouts CSV</button><button class="btn" data-act="exportCsv" data-v="body">Body CSV</button><button class="btn" data-act="exportCsv" data-v="food">Food CSV</button><button class="btn" data-act="exportCsv" data-v="runs">Runs CSV</button></div></section>`;
+}
+function download(name, text, type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000); }
+const csv = rows => rows.map(r=>r.map(v=>{ v=v==null?"":String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(",")).join("\n");
+function setKcal(v){ const T=S.settings.targets, old=T.kcal, d=v-old; T.kcal=v; T.carbs=Math.max(50,Math.round(T.carbs+d*0.6/4)); T.fat=Math.max(40,Math.round(T.fat+d*0.4/9));
+  (S.settings.kcalHistory=S.settings.kcalHistory||[]).push({date:TODAY(), kcal:v, from:old}); queueSave("settings/main"); }
+
+Object.assign(A, {
+  prRange(b){ ui.prRange=b.dataset.v; lsSet("rp-prr",ui.prRange); render(); },
+  revWeek(b){ const cur=ui.revWeek||addDays(monday(TODAY()),-7), n=addDays(cur,Number(b.dataset.n)); if(n>monday(TODAY())) return; ui.revWeek=n; render(); },
+  prApplyKcal(b){ const v=Math.round(num(b.dataset.v)); setKcal(v); toast(`Calorie target set to ${n0(v)}. Protein stays at ${n0(S.settings.targets.protein)} g.`); render(); },
+  prDeload(){ const t=TODAY(), from=wd(t)<=1?monday(t):addDays(monday(t),7); S.settings.deloadFrom=from; S.settings.deloadUntil=addDays(from,6); S.settings.lastDeload=from; queueSave("settings/main"); toast(`Light week ${fmtDate(from).slice(4)} – ${fmtDate(addDays(from,6)).slice(4)}: the generator will keep sessions light.`); render(); },
+  prPhase(b){ S.settings.goal=Object.assign({}, S.settings.goal||{}, {phase:b.dataset.v}); queueSave("settings/main"); render(); },
+  prLift(b){ ui.lift=b.dataset.v; render(); },
+  profSess(b){ P_().weeklySessions=+b.dataset.v; queueSave("settings/main"); render(); },
+  ckOpen(b){ const f=b.dataset.f; if(f==="run") pushSheet({type:"run", date:ui.tab==="today"?ui.date:TODAY(), f:{km:"",min:"",type:"easy",rpe:""}}); else pushSheet({type:"checkin", date:ui.tab==="today"?ui.date:TODAY(), focus:f});
+    setTimeout(()=>{ const id={weight:stMode()?"ck-st":"ck-kg", waist:"ck-waist", run:"rn-km"}[f]; const e=id&&document.getElementById(id); if(e) e.focus(); }, 350); },
+  ckSet(b){ const s=top(), d=dayMut(s.date); d.checkin=Object.assign({}, d.checkin||{}); const k=b.dataset.k; d.checkin[k]=d.checkin[k]===b.dataset.v?undefined:b.dataset.v; queueSave("days/"+s.date); render(); },
+  ckUnit(){ P_().wUnit=stMode()?"kg":"st"; queueSave("settings/main"); render(); },
+  runType(b){ top().f.type=b.dataset.v; render(); },
+  runSave(){ const s=top(), f=s.f; if(!(num(f.km)>0)){ toast("Add the distance."); return; } const d=dayMut(s.date); d.runs=d.runs||[]; d.runs.push({ id:rid("r"), km:num(f.km), min:num(f.min)||null, type:f.type||"easy", rpe:num(f.rpe)||null }); queueSave("days/"+s.date); s.f={km:"",min:"",type:"easy",rpe:""}; toast("Run saved"); render(); },
+  runDel(b){ const s=top(), d=dayMut(s.date); d.runs.splice(+b.dataset.i,1); queueSave("days/"+s.date); render(); },
+  photoOpen(b){ pushSheet({type:"photo", id:b.dataset.id}); },
+  async photoDel(b){ const id=b.dataset.id; if(ui.confirm!=="ph:"+id){ ui.confirm="ph:"+id; render(); return; } ui.confirm=null; await photoDel(id); ui.photos=await photosAll(); ui.sheets.pop(); toast("Photo deleted"); render(); },
+  exportJson(){ download(`recomp-planner-${TODAY()}.json`, JSON.stringify({ exported:new Date().toISOString(), exercises:S.ex, foods:S.foods, workouts:S.wo, days:S.days, settings:S.settings }, null, 1), "application/json"); },
+  exportCsv(b){ const k=b.dataset.v, ds=Object.keys(S.days).sort(), pool=Coach.pool(S.ex); let rows;
+    if(k==="workouts"){ rows=[["date","exercise","set","kg","reps","rir","done"]]; for(const d of ds) for(const [ex,rs] of Object.entries(S.days[d].log||{})) (rs||[]).forEach((r,i)=>rows.push([d,(pool.get(ex)||S.ex[ex]||{}).name||ex,i+1,r.w,r.r,r.rir,r.done?1:0])); }
+    else if(k==="body"){ rows=[["date","weight_kg","waist_cm","bodyfat_pct_measured","sleep","energy"]]; for(const d of ds){ const b=S.days[d].body||{}, c=S.days[d].checkin||{}; if(b.weight||b.waist||b.bf||c.sleep||c.energy) rows.push([d,b.weight&&Math.round(b.weight*100)/100,b.waist,b.bf,c.sleep,c.energy]); } }
+    else if(k==="runs"){ rows=[["date","km","minutes","type","effort"]]; for(const d of ds) for(const r of S.days[d].runs||[]) rows.push([d,r.km,r.min,r.type,r.rpe]); }
+    else { rows=[["date","meal","food","qty","unit","kcal","protein_g","carbs_g","fat_g","eaten"]]; for(const d of ds) for(const m of S.days[d].meals||[]){ const x=macrosOf(m); rows.push([d,m.slot,m.name,m.qty,m.unit,Math.round(x.kcal),r1(x.p),r1(x.c),r1(x.f),m.eaten?1:0]); } }
+    download(`recomp-${k}-${TODAY()}.csv`, csv(rows), "text/csv"); }
+});
+Object.assign(IN, {
+  ckWeight(el){ const s=top(), d=dayMut(s.date); d.body=Object.assign({}, d.body||{}); let kg;
+    if(stMode()){ const st=num($("#ck-st").value), lb=num($("#ck-lb").value); kg=(st||lb)?(st*14+lb)*LB:null; } else kg=num($("#ck-kg").value)||null;
+    if(kg && (kg<30||kg>250)) return; if(kg) d.body.weight=Math.round(kg*100)/100; else delete d.body.weight; queueSave("days/"+s.date); },
+  ckBody(el){ const s=top(), d=dayMut(s.date); d.body=Object.assign({}, d.body||{}); const v=num(el.value); if(v>0) d.body[el.dataset.k]=v; else delete d.body[el.dataset.k]; queueSave("days/"+s.date); },
+  runF(el){ top().f[el.dataset.k]=el.value; },
+  goalW(){ const G=S.settings.goal=S.settings.goal||{phase:"recomp"}; let kg; if(stMode()){ const st=num($("#g-st").value), lb=num($("#g-lb").value); kg=(st||lb)?(st*14+lb)*LB:null; } else kg=num($("#g-kg").value)||null; G.weight=kg?Math.round(kg*100)/100:null; queueSave("settings/main"); },
+  goalWaist(el){ const G=S.settings.goal=S.settings.goal||{phase:"recomp"}; G.waist=num(el.value)||null; queueSave("settings/main"); },
+  async photoAdd(el, ev){ if(ev.type!=="change") return; const f=el.files&&el.files[0]; if(!f) return; try{ const src=await shrink(f); await photoPut({ id:rid("ph"), date:TODAY(), src }); ui.photos=await photosAll(); toast("Photo saved on this phone"); render(); }catch(e){ toast("Couldn't read that photo."); } el.value=""; }
+});
 
 /* ---------- app feel: motion, swipe to dismiss ---------- */
 const reduceMotion=()=>{ try{ return matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){ return false; } };
