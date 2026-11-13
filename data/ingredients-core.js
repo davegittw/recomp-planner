@@ -87,7 +87,7 @@ window.CORE_INGREDIENTS = [{"id":"c15107","n":"Chicken breast, skinless, raw","e
 {"id":"c15936","n":"Green / brown lentils, cooked","e":"🫘","v":[116,9.0,12.2,0.4,7.9],"u":{"pouch (250 g)":250},"a":["cooked lentils","puy lentils"],"s":"USDA: Lentils, mature seeds, cooked, boiled, without salt"},
 {"id":"c12238","n":"Edamame, frozen","e":"🫛","v":[109,11.2,2.8,4.7,4.8],"u":{"handful (80 g)":80},"a":["edamame beans","soya beans"],"s":"USDA: Edamame, frozen, unprepared"},
 {"id":"c17711","n":"Houmous","e":"🫘","v":[300,7.0,9.0,26.0,5.0],"u":{"tbsp":15},"a":["hummus","houmous"],"s":"Typical UK pack label"},
-{"id":"c12705","n":"Basmati / long-grain rice, dry","e":"🍚","v":[365,7.1,78.7,0.7,1.3],"u":{"portion (75 g)":75,"cup":185},"a":["rice","basmati rice","white rice","jasmine rice","long grain rice"],"s":"USDA: Rice, white, long-grain, raw"},
+{"id":"c12705","n":"Basmati / long-grain rice, dry","e":"🍚","v":[365,7.1,78.7,0.7,1.3],"u":{"portion (75 g)":75,"cup":185},"a":["rice","basmati rice","white rice","jasmine rice","long grain rice","paella rice","arborio rice","risotto rice"],"s":"USDA: Rice, white, long-grain, raw"},
 {"id":"c13537","n":"White rice, cooked","e":"🍚","v":[130,2.7,27.8,0.3,0.4],"u":{"pouch (250 g)":250,"cup":160},"a":["cooked rice","microwave rice","rice pouch"],"s":"USDA: Rice, white, long-grain, cooked without salt"},
 {"id":"c13483","n":"Brown rice, dry","e":"🍚","v":[367,7.5,72.7,3.2,3.6],"u":{"portion (75 g)":75},"a":["brown rice","wholegrain rice"],"s":"USDA: Rice, brown, long-grain, raw"},
 {"id":"c13484","n":"Brown rice, cooked","e":"🍚","v":[123,2.7,24.0,1.0,1.6],"u":{"pouch (250 g)":250},"a":[],"s":"USDA: Rice, brown, long-grain, cooked"},

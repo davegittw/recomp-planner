@@ -405,3 +405,41 @@ summary.h2like{font:500 20px var(--display);cursor:pointer;list-style-position:o
 .phcmp img,.phbig{width:100%;border-radius:14px;display:block}
 .phcmp figcaption{font-size:12px;color:var(--muted);margin-top:4px;text-align:center}
 @media (max-width:370px){ .ckstrip{grid-template-columns:repeat(2,1fr)} }
+
+/* ---------- meal plan and shopping ---------- */
+.wnav{display:flex;align-items:center;gap:8px}
+.wnav b{font:500 18px var(--display)}
+.grid3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px}
+.pp{display:flex;flex-direction:column;gap:12px;margin-top:10px}
+.tog{display:flex;align-items:center;gap:10px;font-size:15px}
+.tog input{width:22px;height:22px;min-height:0;accent-color:var(--accent)}
+.ppsum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.ppsum b{font:500 22px var(--display)}
+.pday.today{box-shadow:0 0 0 2px var(--accent),var(--shadow-sm)}
+.pday .card-h{gap:8px;align-items:baseline}
+.pmeal{display:flex;align-items:center;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.pm-main{flex:1;min-width:0;display:flex;gap:12px;align-items:center;border:0;background:none;padding:0;text-align:left}
+.pm-main .plate.sm{width:44px;height:44px;font-size:22px;flex:none}
+.pm-main .main{display:flex;flex-direction:column;min-width:0}
+.pm-main .label{font-size:10px}
+.pm-main .nm{font-weight:600;font-size:15px;line-height:1.25}
+.pm-main .sub,.sitem .sub{font-size:12.5px;color:var(--muted)}
+.iconbtn.sm{width:36px;height:36px;box-shadow:none;background:var(--sunk);flex:none}
+.iconbtn.sm svg{width:18px;height:18px}
+.ptot{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;font-variant-numeric:tabular-nums}
+.ptot b{color:var(--ink);font-weight:600}
+.card.shop{gap:4px}
+.sitem{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.sitem:first-of-type{border-top:0}
+.si-main{flex:1;min-width:0;display:flex;align-items:center;gap:12px;border:0;background:none;padding:0;text-align:left}
+.sitem .main{display:flex;flex-direction:column;min-width:0;flex:1}
+.sitem .nm{font-size:15px}
+.sitem.got .nm{text-decoration:line-through;color:var(--muted)}
+.sbox{width:24px;height:24px;flex:none;border-radius:8px;border:1.5px solid var(--faint);display:grid;place-items:center;color:var(--accent-ink)}
+.sitem.got .sbox{background:var(--accent);border-color:var(--accent)}
+.sbox svg{width:15px;height:15px}
+.btn.sm{padding:6px 10px;font-size:13px;min-height:0}
+ul.ing{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ul.ing li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid var(--line);font-size:14.5px}
+ul.ing li .num{color:var(--muted);text-align:right;white-space:nowrap}
+.method{font-size:15px;line-height:1.55}

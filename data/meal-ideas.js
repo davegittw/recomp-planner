@@ -29,6 +29,9 @@ window.MEAL_IDEAS = [
     i: ["3 Weetabix", "300ml semi-skimmed milk", "1 medium banana", "1 scoop whey protein"],
     m: "Shake the whey into the milk first, then pour over the Weetabix and top with sliced banana." },
 
+  { id: "m-berries-yog", n: "Berries and Greek yoghurt", e: "🫐", c: "Breakfast", s: 1, t: "2 min · your weekday usual",
+    i: ["250g 0% Greek yoghurt", "150g frozen mixed berries", "30g granola", "1 scoop whey protein"],
+    m: "Stir the whey into the yoghurt until smooth, then top with the berries (defrosted overnight in the fridge, or straight from frozen) and the granola." },
   // ---------- Lunch
   { id: "m-chicken-rice-box", n: "Chicken, rice and broccoli box", e: "🍱", c: "Lunch", s: 4, t: "30 min · meal prep",
     i: ["800g chicken breast", "300g basmati rice", "600g broccoli", "2 tbsp olive oil", "4 tbsp soy sauce", "2 cloves garlic"],
@@ -93,6 +96,21 @@ window.MEAL_IDEAS = [
     i: ["300g chicken breast", "100g halloumi", "4 tortilla wraps", "2 red peppers", "1 red onion", "2 tsp paprika", "1 tsp ground cumin", "4 tbsp salsa", "100g 0% Greek yoghurt"],
     m: "Fry strips of chicken, pepper and onion with the spices until charred. Griddle the halloumi slices. Serve in warm wraps with salsa and yoghurt." },
 
+  { id: "m-paella", n: "Chicken and chorizo paella", e: "🥘", c: "Dinner", s: 4, t: "45 min · one pan",
+    i: ["600g chicken thighs", "70g chorizo", "300g paella rice", "1 onion", "1 red pepper", "2 cloves garlic", "1 tsp smoked paprika", "900ml chicken stock", "150g frozen peas", "200g raw king prawns", "1 lemon"],
+    m: "Brown the diced chicken and chorizo in a wide pan (8 min). Soften the onion, pepper and garlic (5 min), stir in the paprika and rice, then pour in the hot stock. Simmer without stirring for 18 minutes. Scatter over the peas and prawns, cover and cook 5 more minutes until the prawns are pink. Rest 5 minutes and serve with lemon wedges." },
+  { id: "m-chicken-fajitas", n: "Chicken fajitas", e: "🌮", c: "Dinner", s: 4, t: "25 min",
+    i: ["700g chicken breast", "2 red peppers", "1 onion", "2 tsp smoked paprika", "1 tsp ground cumin", "1 tbsp olive oil", "8 tortilla wraps", "150g 0% Greek yoghurt", "80g reduced-fat cheddar", "4 tbsp salsa"],
+    m: "Slice the chicken, peppers and onion and toss with the seasoning and oil. Cook in a very hot pan in two batches, 6–8 minutes each, until the chicken is cooked through. Warm the wraps and serve with yoghurt, cheese and salsa at the table." },
+  { id: "m-sausage-casserole", n: "Sausage and bean casserole", e: "🍲", c: "Dinner", s: 4, t: "50 min · freezes well",
+    i: ["8 reduced-fat pork sausages", "1 onion", "2 carrots", "2 cloves garlic", "1 tsp smoked paprika", "400g tin chopped tomatoes", "400g tin butter beans", "400g tin cannellini beans", "300ml chicken stock", "500g new potatoes"],
+    m: "Brown the sausages (8 min) and set aside. Soften the onion, carrot and garlic (8 min), add the paprika, tomatoes, drained beans and stock, then return the sausages. Simmer 30 minutes until thick. Boil the new potatoes for the last 20 minutes and serve alongside." },
+  { id: "m-lemon-orzo", n: "Lemon chicken orzo", e: "🍋", c: "Dinner", s: 4, t: "30 min · one pot",
+    i: ["600g chicken breast", "300g orzo", "1 onion", "2 cloves garlic", "800ml chicken stock", "100g spinach", "1 lemon", "40g parmesan"],
+    m: "Brown the diced chicken (6 min) and set aside. Soften the onion and garlic, stir in the orzo, then add the stock and simmer 10 minutes, stirring often. Return the chicken, wilt in the spinach and finish with lemon zest, juice and parmesan." },
+  { id: "m-beef-broccoli", n: "Beef and broccoli stir-fry with rice", e: "🥦", c: "Dinner", s: 2, t: "20 min",
+    i: ["400g lean beef steak", "200g broccoli", "2 cloves garlic", "1 thumb ginger", "3 tbsp soy sauce", "1 tbsp honey", "1 tsp cornflour", "160g basmati rice", "1 tbsp vegetable oil"],
+    m: "Cook the rice (12 min). Slice the beef thinly and sear in a smoking-hot pan for 2 minutes; set aside. Stir-fry the broccoli, garlic and ginger for 4 minutes with a splash of water, return the beef, then add the soy, honey and cornflour mixed with 3 tbsp water and toss until glossy." },
   // ---------- Snacks and shakes
   { id: "m-bulk-shake", n: "Lean-bulk shake", e: "🥤", c: "Snacks & shakes", s: 1, t: "2 min",
     i: ["400ml semi-skimmed milk", "1 scoop whey protein", "1 medium banana", "40g porridge oats", "1 tbsp peanut butter"],
