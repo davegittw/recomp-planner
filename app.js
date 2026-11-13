@@ -236,6 +236,8 @@ function vTrain(){
   } else {
     h+=`<input type="search" id="exq" placeholder="Search exercises" value="${esc(ui.exQ)}" data-in="exQ" autocomplete="off">
     <div class="chips">${["all",...PATTERNS].map(p=>`<button class="chip ${ui.exFilter===p?"on":""}" data-act="exFilter" data-v="${p}">${p==="all"?"All":p[0].toUpperCase()+p.slice(1)}</button>`).join("")}</div>`;
+    const lib=window.EX_LIBRARY||[], added=lib.filter(x=>S.ex[x.id]).length;
+    h+=`<button class="card libcta" data-act="openLib"><span class="plate sm" aria-hidden="true">${ICON.train}</span><span style="flex:1;min-width:0;text-align:left"><b style="font:500 18px var(--display)">Exercise library</b><div class="small muted">${lib.length} exercises for your rack, barbell, dumbbells, cables, landmine and pull-up bar${added?` · ${added} in your list`:""}</div></span>${ICON.right}</button>`;
     h+=exList(ui.exFilter, ui.exQ, "editEx");
   }
   return h+`</div>`;
@@ -246,6 +248,39 @@ function exList(filter, q, act){
   if(!Object.keys(S.ex).length) return `<div class="card"><div class="empty">No exercises yet. Add the first one with “New exercise”.</div></div>`;
   if(!xs.length) return `<div class="empty">No exercises match.</div>`;
   return `<div class="list">`+xs.map(e=>`<button class="li" data-act="${act}" data-id="${esc(e.id)}"><span class="main"><div class="nm">${esc(e.name)}</div><div class="sub">${esc((e.muscles||[]).join(", "))}${(e.equipment||[]).length?" · "+esc(e.equipment.join(", ")):""}</div></span><span class="pill ${esc(e.pattern)}">${esc(e.pattern||"")}</span></button>`).join("")+`</div>`;
+}
+
+/* ---------- exercise library ---------- */
+const LIB_GROUPS=["Chest","Shoulders","Triceps","Back","Biceps & forearms","Quads","Glutes & hamstrings","Calves","Core","Full body"];
+const LIB_EQUIP=["Barbell","Dumbbells","Cables","Landmine","Pull-up bar","Bodyweight"];
+function libFind(id){ return (window.EX_LIBRARY||[]).find(x=>x.id===id); }
+function libToExercise(x){ return { id:x.id, name:x.n, pattern:x.p, muscles:x.m.slice(), equipment:x.e.slice(), sets:x.s, reps:x.r, rest:x.rt, notes:x.c, lib:true }; }
+function libFilter(s, onlyNew){
+  const q=(s.q||"").toLowerCase().trim();
+  return (window.EX_LIBRARY||[]).filter(x=>(!onlyNew||!S.ex[x.id]) && (!s.group||s.group==="all"||x.g===s.group) && (!s.equip||s.equip==="all"||x.e.includes(s.equip))
+    && (!s.noBench||!x.e.includes("Bench")) && (!s.pattern||s.pattern==="all"||x.p===s.pattern)
+    && (!q||q.split(/\s+/).every(t=>(x.n+" "+x.m.join(" ")+" "+x.e.join(" ")+" "+x.g).toLowerCase().includes(t))));
+}
+function libRow(x, s, addAct){
+  const have=!!S.ex[x.id], open=s.open===x.id;
+  return `<div class="librow ${open?"open":""}"><button class="libmain" data-act="libToggle" data-id="${esc(x.id)}" aria-expanded="${open}">
+      <div class="nm">${esc(x.n)}</div><div class="sub">${esc(x.m.join(", "))} · ${esc(x.e.join(", "))}</div>
+      ${open?`<div class="libcue">${esc(x.c)}</div><div class="small muted num">${x.s} × ${esc(x.r)} · ${secs(x.rt)} rest</div>`:""}</button>
+    ${have&&addAct==="libAdd"?`<span class="pill done" aria-label="In your list">${ICON.check}</span>`:`<button class="btn ${addAct==="libAdd"?"":"primary"} libadd" data-act="${addAct}" data-id="${esc(x.id)}">${addAct==="libAdd"?"Add":"Use"}</button>`}</div>`;
+}
+function renderLib(s){
+  const xs=libFilter(s,false), fresh=xs.filter(x=>!S.ex[x.id]);
+  let h=sheetHead("Exercise library")+`<div class="sbody">
+    <input type="search" id="lib-q" placeholder="Search exercises or muscles" value="${esc(s.q)}" data-in="libQ" autocomplete="off">
+    <div class="chips hscroll">${["all",...LIB_GROUPS].map(g=>`<button class="chip ${s.group===g?"on":""}" data-act="libGroup" data-v="${esc(g)}">${g==="all"?"All muscles":esc(g)}</button>`).join("")}</div>
+    <div class="chips hscroll">${["all",...LIB_EQUIP].map(e=>`<button class="chip ${s.equip===e?"on":""}" data-act="libEquip" data-v="${esc(e)}">${e==="all"?"All kit":esc(e)}</button>`).join("")}
+      <button class="chip ${s.noBench?"on":""}" data-act="libBench">No bench</button></div>
+    <div class="top-row"><span class="small muted" style="flex:1">${xs.length} exercise${xs.length===1?"":"s"}${fresh.length&&fresh.length<xs.length?`, ${fresh.length} not in your list yet`:""}</span>
+      ${fresh.length?`<button class="btn" data-act="libAddAll">${ui.confirm==="liball"?`Tap again to add ${fresh.length}`:`Add all ${fresh.length}`}</button>`:""}</div>`;
+  if(!xs.length) h+=`<div class="empty">Nothing matches. Try another muscle group or clear the search.</div>`;
+  for(const g of LIB_GROUPS){ const gx=xs.filter(x=>x.g===g); if(!gx.length) continue;
+    h+=`<div class="label">${esc(g)}</div><div class="list">${gx.map(x=>libRow(x,s,"libAdd")).join("")}</div>`; }
+  return h+`<div class="small muted">Added exercises go into your list, where you can change the name, sets, reps or rest.</div></div>`;
 }
 
 function vFood(){
@@ -375,11 +410,13 @@ function renderSheet(){
      <label class="field"><span class="label">Notes</span><input id="wd-notes" value="${esc(d.notes||"")}" data-in="draft" data-k="notes" placeholder="e.g. Phase 2, add 2.5 kg when top of range hit"></label>
      <div class="setbtns">${s.id?delBtn("wo:"+s.id,"delWorkout"):""}<span class="spacer"></span><button class="btn primary" data-act="saveWorkout">Save workout</button></div></div>`;
   }
+  else if(s.type==="exLib"){ h+=renderLib(s); }
   else if(s.type==="exPick"){
     h+=sheetHead("Add exercise", `<button class="btn ghost" data-act="newExFromPick">+ New</button>`)+`<div class="sbody">
      <input type="search" id="xp-q" placeholder="Search exercises" value="${esc(s.q)}" data-in="xpQ" autocomplete="off">
      <div class="chips">${["all",...PATTERNS].map(p=>`<button class="chip ${s.filter===p?"on":""}" data-act="xpFilter" data-v="${p}">${p==="all"?"All":p[0].toUpperCase()+p.slice(1)}</button>`).join("")}</div>
-     ${exList(s.filter, s.q, "xpPick")}</div>`;
+     ${exList(s.filter, s.q, "xpPick")}
+     ${(()=>{ const xs=libFilter({q:s.q, pattern:s.filter},true); return xs.length?`<div class="label">From the library · ${xs.length}</div><div class="list">${xs.slice(0,60).map(x=>libRow(x,s,"xpLib")).join("")}</div>${xs.length>60?`<div class="small muted">Search to narrow down the rest.</div>`:""}`:""; })()}</div>`;
   }
   p.innerHTML=h;
 }
@@ -665,6 +702,16 @@ const A = {
   wDel(b){ top().draft.items.splice(+b.dataset.i,1); render(); },
   wAdd(){ const w=top(); pushSheet({type:"exPick", q:"", filter:["push","pull","legs"].includes(w.draft.tag)?w.draft.tag:"all"}); },
   xpFilter(b){ top().filter=b.dataset.v; render(); },
+  openLib(){ pushSheet({type:"exLib", q:"", group:"all", equip:"all", noBench:false, open:null}); },
+  libToggle(b){ const s=top(); s.open=s.open===b.dataset.id?null:b.dataset.id; render(); },
+  libGroup(b){ top().group=b.dataset.v; ui.confirm=null; render(); },
+  libEquip(b){ top().equip=b.dataset.v; ui.confirm=null; render(); },
+  libBench(){ const s=top(); s.noBench=!s.noBench; ui.confirm=null; render(); },
+  libAdd(b){ const x=libFind(b.dataset.id); if(!x) return; Sync.put("exercises/"+x.id, libToExercise(x)); loadS(); toast(`Added ${x.n}`); render(); },
+  libAddAll(){ const s=top(), fresh=libFilter(s,false).filter(x=>!S.ex[x.id]); if(!fresh.length) return;
+    if(ui.confirm!=="liball"){ ui.confirm="liball"; render(); return; }
+    ui.confirm=null; fresh.forEach(x=>Sync.put("exercises/"+x.id, libToExercise(x))); loadS(); toast(`Added ${fresh.length} exercises`); render(); },
+  xpLib(b){ const x=libFind(b.dataset.id); if(!x) return; Sync.put("exercises/"+x.id, libToExercise(x)); loadS(); ui.sheets.pop(); const w=top(); addToWorkout(w, x.id); render(); },
   xpPick(b){ ui.sheets.pop(); const w=top(); addToWorkout(w, b.dataset.id); render(); },
   newExFromPick(){ const s=top(); pushSheet({type:"exercise", id:null, fromPick:true, draft:{name:s.q||"", pattern:s.filter!=="all"?s.filter:"push", muscles:[], equipment:[], sets:3, reps:"8-12", rest:90, notes:""}}); },
   async saveWorkout(){ const s=top(), d=s.draft; if(!String(d.name||"").trim()){ toast("Give the workout a name."); return; }
@@ -698,11 +745,12 @@ const IN = {
   mealQty(el, ev){ const s=top(); const m=dayMut(s.date).meals.find(x=>x.id===s.id); if(!m) return; m.qty=num(el.value); $("#mi-prev").innerHTML=preview(macrosOf(m)); queueSave("days/"+s.date); if(ev.type==="change") render(); },
   draft(el){ const s=top(); s.draft[el.dataset.k]=el.value; if(s.type==="food"){ const c=$("#fd-check"); if(c) c.innerHTML=foodCheck(s.draft); } },
   witem(el){ top().draft.items[+el.dataset.i][el.dataset.k]=el.value; },
-  xpQ(el){ top().q=el.value; render(); }
+  xpQ(el){ top().q=el.value; render(); },
+  libQ(el){ top().q=el.value; ui.confirm=null; render(); }
 };
 document.addEventListener("click", ev=>{ const b=ev.target.closest("[data-act]"); if(!b||b.disabled) return; const f=A[b.dataset.act]; if(f){ ev.preventDefault(); f(b); } });
 ["input","change"].forEach(t=>document.addEventListener(t, ev=>{ const el=ev.target; const k=el.dataset&&el.dataset.in; if(k&&IN[k]){
-  if(t==="change" && ["exQ","foodQ","pickQ","xpQ","setVal","pickRowQ","rowQ","listPaste","draft","witem","pickEaten","listEaten"].includes(k)) return; IN[k](el, ev); } }));
+  if(t==="change" && ["exQ","foodQ","pickQ","xpQ","libQ","setVal","pickRowQ","rowQ","listPaste","draft","witem","pickEaten","listEaten"].includes(k)) return; IN[k](el, ev); } }));
 document.addEventListener("submit", ev=>{
   if(ev.target.id!=="askform") return; ev.preventDefault();
   const el=$("#ask"), q=el.value.trim(); if(!q) { el.focus(); return; }
