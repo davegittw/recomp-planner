@@ -255,7 +255,7 @@ function exList(filter, q, act){
 }
 
 /* ---------- exercise library ---------- */
-const LIB_GROUPS=["Chest","Shoulders","Triceps","Back","Biceps & forearms","Quads","Glutes & hamstrings","Calves","Core","Full body"];
+const LIB_GROUPS=["Chest","Shoulders","Triceps","Back","Biceps & forearms","Quads","Glutes & hamstrings","Calves","Core","Full body","Mobility"];
 const LIB_EQUIP=["Barbell","Dumbbells","Cables","Landmine","Pull-up bar","Bands","Bodyweight"];
 function libFind(id){ return (window.EX_LIBRARY||[]).find(x=>x.id===id); }
 function libToExercise(x){ return { id:x.id, name:x.n, pattern:x.p, muscles:x.m.slice(), equipment:x.e.slice(), sets:x.s, reps:x.r, rest:x.rt, notes:x.c, lib:true }; }
@@ -860,6 +860,7 @@ function renderGen(s){
     <div class="small muted">${(g.items||[]).length} exercises · about ${n0(g.est)} min · ${esc(GOAL_TXT[g.goal]||"")}${g.request?` · “${esc(g.request)}”`:""}</div>`;
   if(g.safety) h+=`<div class="banner warnb">${esc(g.safety)}</div>`;
   for(const w of g.warnings||[]) h+=`<div class="banner warnb">${esc(w.text)}</div>`;
+  if((g.warmup||[]).length) h+=`<details class="why"><summary>Warm-up · about 5 min</summary><ul>${g.warmup.map(w=>`<li><b>${esc(w.name)}</b> · ${esc(w.dose)}<br><span class="muted">${esc(w.cue||"")}</span></li>`).join("")}</ul></details>`;
   if((g.reasons||[]).length) h+=`<details class="why" ${s.whyOpen?"open":""}><summary>Why this session</summary><ul>${g.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></details>`;
   h+=`<div class="glist">`;
   (g.items||[]).forEach((it,i)=>{ const open=s.edit===i;
@@ -976,6 +977,7 @@ function renderLive(s){
       <div class="rbar"><i id="lv-restbar" style="width:${resting?Math.max(0,(ui.live.restEnd-Date.now())/(ui.live.restTotal*1000)*100):0}%"></i></div>
       <div class="setbtns">${resting?`<button class="btn" data-act="restAdd" data-n="-15">−15s</button><button class="btn" data-act="restAdd" data-n="30">+30s</button><span class="spacer"></span><button class="btn" data-act="restSkip">Skip</button>`
         :`<span class="small muted" style="flex:1">Starts when you tick a set</span><button class="btn" data-act="restStart">Start ${secs(it.rest||90)}</button>`}</div></div>`;
+  if(d.gen&&(d.gen.warmup||[]).length&&!(prog.done)) h+=`<details class="why"><summary>Warm-up first · about 5 min</summary><ul>${d.gen.warmup.map(w=>`<li><b>${esc(w.name)}</b> · ${esc(w.dose)}<br><span class="muted">${esc(w.cue||"")}</span></li>`).join("")}</ul></details>`;
   h+=`<div class="lvdots" role="tablist">${items.map((x,i)=>{ const r=(d.log||{})[x.exId]||[], n=r.length||Number(x.sets)||0, dn=r.filter(y=>y.done).length;
       return `<button class="lvdot ${i===s.idx?"on":""} ${n&&dn>=n?"done":""}" data-act="liveGo" data-i="${i}" aria-label="Exercise ${i+1}: ${esc((exInfo(x.exId)||{}).name||"")}">${n&&dn>=n?ICON.check:i+1}</button>`; }).join("")}</div>`;
   h+=`<div class="card lvex"><div class="small muted">Exercise ${s.idx+1} of ${items.length} · ${prog.done}/${prog.total} sets done</div>

@@ -122,7 +122,7 @@ window.Coach = (function () {
   }
   function pool(userEx) {
     const out = new Map();
-    for (const x of lib()) out.set(x.id, { id: x.id, name: x.n, group: x.g, equip: x.e, sets: x.s, reps: x.r, rest: x.rt, cue: x.c, ...metaFor(x.id) });
+    for (const x of lib()) if (x.g !== "Mobility" && x.id !== "x-band-dislocate") out.set(x.id, { id: x.id, name: x.n, group: x.g, equip: x.e, sets: x.s, reps: x.r, rest: x.rt, cue: x.c, ...metaFor(x.id) });
     for (const e of Object.values(userEx || {})) if (!out.has(e.id)) {
       const m = metaFor(e.id, e); if (!m.pm.length) continue;
       out.set(e.id, { id: e.id, name: e.name, group: "Your exercises", equip: e.equipment || [], sets: e.sets, reps: e.reps, rest: e.rest, cue: e.notes || "", own: true, ...m });
@@ -392,7 +392,15 @@ window.Coach = (function () {
     if (goal === "light") reasons.push("Light session: fewer sets, well short of failure.");
     if (est > minutes + 7) warnings.push({ kind: "time", text: `This comes out at about ${est} minutes. Remove an exercise if you're short on time.` });
     const title = R.focus && exPool.get(R.focus) ? `${exPool.get(R.focus).name} focus` : autoNote ? autoNote.split(":")[0] : listNames(targets.length > 4 ? summariseTargets(targets) : targets);
-    return { title, request: R.text, targets, minutes, est, goal, items, reasons, warnings, safety, created: Date.now(), seed: input.seed };
+    // warm-up: two or three drills for the joints this session uses (mobility drills come from your saved posts)
+    const lower = targets.some(m => ["quads", "glutes", "hams", "adductors", "lowback", "calves"].includes(m)), upper = targets.some(m => ["chest", "lats", "upperback", "frontdelt", "sidedelt", "reardelt", "triceps", "biceps", "traps"].includes(m));
+    const L = id => (lib().find(x => x.id === id) || {});
+    const wu = [];
+    if (lower) wu.push(...["m-9090", "m-wgs", "m-squat-stand", "m-hipcar", "m-couch"].sort(() => rand() - 0.5).slice(0, upper ? 2 : 3));
+    if (upper) wu.push(...["x-band-dislocate", "x-band-apart", "x-swimmer"].sort(() => rand() - 0.5).slice(0, lower ? 1 : 2));
+    if (!wu.length) wu.push("m-wgs", "m-hipcar");
+    const warmup = wu.map(id => { const x = L(id); return x.n ? { id, name: x.n, dose: x.g === "Mobility" ? x.r : "1 × 10", cue: x.c } : null; }).filter(Boolean);
+    return { warmup, title, request: R.text, targets, minutes, est, goal, items, reasons, warnings, safety, created: Date.now(), seed: input.seed };
   }
   function summariseTargets(ts) {
     const g = [["Chest", ["chest"]], ["Back", ["lats", "upperback"]], ["Shoulders", ["frontdelt", "sidedelt", "reardelt"]], ["Arms", ["biceps", "triceps"]], ["Legs", ["quads", "hams", "glutes", "calves"]], ["Core", ["abs", "obliques"]]];
