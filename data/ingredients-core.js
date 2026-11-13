@@ -150,7 +150,7 @@ window.CORE_INGREDIENTS = [{"id":"c15107","n":"Chicken breast, skinless, raw","e
 {"id":"c13702","n":"Cabbage","e":"🥬","v":[25,1.3,3.3,0.1,2.5],"u":{"handful shredded (40 g)":40},"a":["white cabbage","red cabbage","savoy cabbage"],"s":"USDA: Cabbage, raw"},
 {"id":"c13684","n":"Beansprouts","e":"🌱","v":[30,3.0,4.1,0.2,1.8],"u":{"handful (50 g)":50},"a":["bean sprouts"],"s":"USDA: Mung beans, mature seeds, sprouted, raw"},
 {"id":"c12217","n":"Asparagus","e":"🌱","v":[20,2.2,1.8,0.1,2.1],"u":{"spear (16 g)":16},"a":[],"s":"USDA: Asparagus, raw"},
-{"id":"c14117","n":"Pak choi","e":"🥬","v":[13,1.5,1.2,0.2,1.0],"u":{"head (120 g)":120},"a":["bok choy"],"s":"USDA: Cabbage, chinese (pak-choi), raw"},
+{"id":"c14117","n":"Pak choi","e":"🥬","v":[13,1.5,1.2,0.2,1.0],"u":{"pak choi (120 g)":120},"a":["bok choy"],"s":"USDA: Cabbage, chinese (pak-choi), raw"},
 {"id":"c12926","n":"Beetroot, cooked","e":"🟣","v":[44,1.7,8.0,0.2,2.0],"u":{"beetroot (50 g)":50},"a":["beetroot"],"s":"USDA: Beets, cooked, boiled, drained"},
 {"id":"c15303","n":"Avocado","e":"🥑","v":[160,2.0,1.8,14.7,6.7],"u":{"whole (150 g)":150,"half (75 g)":75},"a":["avocados"],"s":"USDA: Avocados, raw"},
 {"id":"c12874","n":"Olives","e":"🫒","v":[116,0.8,4.4,10.9,1.6],"u":{"olive (4 g)":4},"a":["black olives","green olives"],"s":"USDA: Olives, ripe, canned (small-extra large)"},

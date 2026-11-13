@@ -12,7 +12,7 @@ window.Ing = (function () {
     "organic free range large medium small big little heaped level rounded generous splash drizzle pinch handful bunch sprig knob " +
     "tin tins can cans jar pack packet pot bag g kg ml l oz lb tbsp tsp cup cups tablespoon tablespoons teaspoon teaspoons " +
     "clove cloves slice slices rasher rashers fillet fillets piece pieces scoop scoops block ball head stick sticks " +
-    "pint pints half bottle bottles glass glasses mug mugs shot shots flute measure").split(" "));
+    "pint pints half bottle bottles glass glasses mug mugs shot shots flute measure thumb thumbs").split(" "));
   function stem(w) {
     if (w.length > 4 && w.endsWith("ies")) return w.slice(0, -3) + "y";
     if (w.length > 4 && w.endsWith("oes")) return w.slice(0, -2);
@@ -114,7 +114,7 @@ window.Ing = (function () {
     [/^(tbsps?|tbs|tbls?|tablespoons?|tblsp)\b/, "tbsp"], [/^(tsps?|teaspoons?)\b/, "tsp"], [/^(cups?)\b/, "cup"],
     [/^(half[- ]pints?|halfs?|halves)\b/, "half pint"], [/^(pints?)\b/, "pint"], [/^(bottles?)\b/, "bottle"], [/^(cans?)\b/, "can"],
     [/^(large glass(es)?)\b/, "large glass"], [/^(small glass(es)?)\b/, "small glass"], [/^(glass(es)?)\b/, "glass"], [/^(flutes?)\b/, "flute"],
-    [/^(mugs?)\b/, "mug"], [/^(singles?|shots?|measures?)\b(?!\s+cream)/, "single"], [/^(doubles?)\b(?!\s+cream)/, "double"],
+    [/^(mugs?)\b/, "mug"], [/^(thumbs?)\b/, "thumb"], [/^(singles?|shots?|measures?)\b(?!\s+cream)/, "single"], [/^(doubles?)\b(?!\s+cream)/, "double"],
     [/^(tins?)\b/, "tin"], [/^(cloves?)\b/, "clove"], [/^(slices?)\b/, "slice"], [/^(rashers?)\b/, "rasher"],
     [/^(handfuls?)\b/, "handful"], [/^(pinch(es)?)\b/, "pinch"], [/^(scoops?)\b/, "scoop"], [/^(fillets?)\b/, "fillet"],
     [/^(breasts?)\b/, "breast"], [/^(thighs?)\b/, "thigh"], [/^(bunch(es)?)\b/, "bunch"], [/^(packs?|packets?)\b/, "pack"],
@@ -146,13 +146,13 @@ window.Ing = (function () {
     for (const [re, u] of UNIT) { const m = t.match(re); if (m) return [u, s.slice(m[0].length).replace(/^\s*(of\s+)?/i, "")]; }
     return [null, s];
   }
-  function findPortion(src, word) {
+  function findPortion(src, word, alt) {
     if (!word) return -1;
     if (word.includes(" ")) { const i = src.units.findIndex(u => u.l.toLowerCase().startsWith(word)); if (i >= 0) return i; word = word.split(" ").pop(); }
     const w = stem(word);
     let i = src.units.findIndex(u => u.l !== "g" && u.l !== "ml" && words(u.l).map(stem).some(t => t === w || t.startsWith(w)));
-    if (i < 0 && word === "can") i = findPortion(src, "tin");
-    if (i < 0 && word === "tin") i = findPortion(src, "can");
+    if (i < 0 && !alt && word === "can") i = findPortion(src, "tin", true);
+    if (i < 0 && !alt && word === "tin") i = findPortion(src, "can", true);
     return i;
   }
   function firstCountPortion(src) {
@@ -204,7 +204,7 @@ window.Ing = (function () {
     const drink = /^(pint|half pint|bottle \(330|can|medium glass|small glass|glass|flute|single|mug|cup \(|regular|mixer)/;
     return src.units.findIndex(u => u.l !== "g" && u.l !== "ml" && u.g != null &&
       (drink.test(u.l) ? u.g <= 600 : u.g <= 250) &&
-      !/^(tbsp|tsp|pinch)\b|^cup( grated)?$|^(block|bag|pack|tin|carton|pouch|head|jar|whole \()/.test(u.l));
+      !/^(tbsp|tsp|pinch)\b|^cup( grated)?$|^(block|bag|pack|tin|carton|pouch|head|jar)\b|^whole \(/.test(u.l));
   }
   // Fit an amount onto a chosen food.
   function applyAmount(src, a) {
