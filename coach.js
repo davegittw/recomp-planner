@@ -155,6 +155,13 @@ window.Coach = (function () {
           mm.byDate[date] = (mm.byDate[date] || 0) + v;
         }
       }
+      // runs load the legs too: an easy run counts like a couple of sets, a hard one more
+      for (const run of (days[date] && days[date].runs) || []) {
+        const hard = /tempo|interval|hill|race|hard/i.test(run.type || "") || +run.rpe >= 8, long = (+run.km || 0) >= 12;
+        const eq = (hard ? 3 : 1.5) + (long ? 1.5 : 0), ageDays = (t0 - pd(date)) / dayMs;
+        for (const m of ["quads", "hams", "calves"]) { const mm = H.muscle[m]; mm.byDate[date] = (mm.byDate[date] || 0) + eq * (m === "calves" ? 1.3 : 1); if (ageDays < 7) mm.runWeek = (mm.runWeek || 0) + eq; }
+        H.runs = (H.runs || []).concat([{ date, hard, km: +run.km || 0 }]);
+      }
       if (sessionEx.length) H.sessions.push({ date, ex: sessionEx });
     }
     for (const m of ALL) { const ds = Object.keys(H.muscle[m].byDate).sort(); const last = ds.filter(d => H.muscle[m].byDate[d] >= 2).pop() || ds.pop(); if (last) { H.muscle[m].last = last; H.muscle[m].lastSets = H.muscle[m].byDate[last]; } }
@@ -238,7 +245,7 @@ window.Coach = (function () {
     const exPool = pool(input.userEx), H = history(input.days, exPool, today), rand = rng(input.seed || today + R.text);
     const minutes = R.minutes || P.typicalMin || 45, reasons = [], warnings = [];
     const sore = [...(R.sore || []), ...((input.checkin && input.checkin.sore) || [])];
-    let goal = R.goal;
+    let goal = input.deload ? "light" : R.goal;
     const lowEnergy = input.checkin && (input.checkin.energy === "low" || input.checkin.sleep === "poor");
     if (lowEnergy && goal !== "light") reasons.push("You logged low energy or poor sleep, so sets are trimmed a little and every set stops further from failure.");
     // safety: pain is not something to train through
@@ -262,6 +269,9 @@ window.Coach = (function () {
     // recovery and weekly volume checks on the targets
     const recov = {}; targets.forEach(m => recov[m] = recovery(H, m, today, sore));
     const tired = targets.filter(m => recov[m] < 0.6 && H.muscle[m].last);
+    const lastRun = (H.runs || []).filter(r => (pd(today) - pd(r.date)) / dayMs <= 1).pop();
+    if (lastRun && targets.some(m => ["quads", "hams", "calves"].includes(m))) warnings.push({ kind: "run", text: `You ran ${daysAgo(today, lastRun.date)}${lastRun.hard ? " (a hard run)" : ""}, so your legs aren't fully fresh. Leg sets are counted with that in mind.` });
+    if (input.deload) reasons.unshift("Deload week: about half the usual sets, stopping 3 reps short, so you recover and come back stronger.");
     if (tired.length) warnings.push({ kind: "recovery", text: `${listNames(tired)} ${tired.length > 1 ? "were" : "was"} trained ${daysAgo(today, H.muscle[tired[0]].last)} (${Math.round(H.muscle[tired[0]].lastSets)} sets) and ${tired.length > 1 ? "are" : "is"} probably still recovering. Training ${tired.length > 1 ? "them" : "it"} hard again now adds fatigue more than growth. I've kept the session lighter on ${tired.length > 1 ? "those" : "that muscle"}; you can still go ahead, or ask for something else.`, muscles: tired });
     const maxed = targets.filter(m => H.muscle[m].week >= M[m].wk[1]);
     if (maxed.length) warnings.push({ kind: "volume", text: `${listNames(maxed)} ${maxed.length > 1 ? "are" : "is"} already at ${Math.round(H.muscle[maxed[0]].week)} sets this week, the top of the useful range. Extra sets today won't add much.`, muscles: maxed });
