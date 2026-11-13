@@ -274,3 +274,70 @@ button:active:not(:disabled),.li:active,.wk:active{transform:scale(.97)}
 .chips.hscroll{flex-wrap:nowrap;overflow-x:auto;margin-inline:-20px;padding-inline:20px;padding-block:4px 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .chips.hscroll::-webkit-scrollbar{display:none}
 .chips.hscroll .chip{flex:none}
+
+/* ---------- workout generator ---------- */
+.coach{background:linear-gradient(160deg,var(--surface),color-mix(in srgb,var(--accent-soft) 55%,var(--surface)))}
+.ctitle{font:500 24px/1.15 var(--display);letter-spacing:-.01em;display:block}
+.genq{display:flex;gap:8px;align-items:center}
+.genq input{flex:1;min-width:0;background:var(--surface);box-shadow:var(--shadow-sm);border-radius:16px;font-size:17px;padding:12px 14px}
+.iconbtn svg{width:20px;height:20px}
+.iconbtn.listening{background:var(--accent);color:#fff;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--accent) 25%,transparent)}}
+.linkish{border:0;background:none;padding:0;color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+.btn svg{width:15px;height:15px;vertical-align:-2px}
+.banner.warnb{background:color-mix(in srgb,var(--warn) 14%,var(--surface));color:var(--ink)}
+details.why{background:var(--surface);border-radius:16px;padding:12px 14px;box-shadow:var(--shadow-sm)}
+details.why summary{font-weight:600;font-size:14.5px;cursor:pointer;color:var(--accent)}
+details.why ul{margin:8px 0 0;padding-left:18px;font-size:14px;display:flex;flex-direction:column;gap:6px}
+details.why a{display:inline-block;margin-top:8px;color:var(--accent);font-weight:600}
+.glist{display:flex;flex-direction:column;gap:10px}
+.gitem{background:var(--surface);border-radius:18px;box-shadow:var(--shadow-sm);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.gi-h{display:flex;align-items:center;gap:12px;border:0;background:none;padding:0;text-align:left;width:100%}
+.gi-h svg{width:18px;height:18px;color:var(--muted);flex:none}
+.gi-h .main{flex:1;min-width:0;display:flex;flex-direction:column}
+.gi-n{width:28px;height:28px;border-radius:50%;background:var(--sunk);display:grid;place-items:center;font:600 13px var(--display);color:var(--muted);flex:none}
+.gi-aim{font-size:14px;background:var(--sunk);border-radius:12px;padding:8px 10px}
+.gitem a{color:var(--accent);font-weight:600}
+.tgt{font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+/* body map */
+.bodymap{width:100%;max-width:420px;align-self:center;display:block}
+.bodymap .sil *{fill:color-mix(in srgb,var(--faint) 35%,var(--bg))}
+.bodymap .mus{stroke:var(--bg);stroke-width:1;cursor:pointer;transition:fill .15s}
+.bodymap .mus.sel{stroke:var(--accent);stroke-width:1.6}
+.bodymap text{font:600 8px var(--body);fill:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.legend{display:flex;gap:14px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.mlist{display:flex;flex-direction:column;gap:7px}
+.mrow{display:grid;grid-template-columns:96px 1fr 34px 76px;gap:10px;align-items:center}
+.mrow .nm{font-size:14px}
+.mrow .num{text-align:right}
+.mrec{text-align:right}
+.mbar{position:relative;height:8px;border-radius:99px;background:var(--sunk);overflow:hidden}
+.mbar .rng{position:absolute;top:0;bottom:0;background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.mbar .v{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--accent)}
+.mbar .v.hi{background:var(--warn)}
+/* live workout mode */
+#sheet .panel.tall{min-height:calc(100% - 24px - env(safe-area-inset-top,0px))}
+.lvclock{font-size:17px;color:var(--muted);min-width:56px;text-align:right}
+.restcard{background:var(--ink);color:var(--bg);border-radius:20px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.restcard .label{color:inherit;opacity:.7}
+.restcard b{font-size:30px;font-weight:500;line-height:1}
+.restcard .btn{background:color-mix(in srgb,var(--bg) 14%,transparent);color:inherit;box-shadow:none}
+.restcard.idle{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-sm)}
+.restcard.idle b{font-size:20px;color:var(--muted)}
+.restcard.idle .btn{background:var(--sunk)}
+.rc-row{display:flex;align-items:center}
+.rbar{height:6px;border-radius:99px;background:color-mix(in srgb,var(--bg) 20%,transparent);overflow:hidden}
+.restcard.idle .rbar{display:none}
+.rbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:99px;transition:width .5s linear}
+.lvdots{display:flex;gap:8px;overflow-x:auto;padding:2px}
+.lvdot{width:38px;height:38px;flex:none;border-radius:50%;border:0;background:var(--surface);box-shadow:var(--shadow-sm);font:600 14px var(--display);color:var(--muted);display:grid;place-items:center}
+.lvdot svg{width:15px;height:15px}
+.lvdot.on{background:var(--ink);color:var(--bg)}
+.lvdot.done{color:var(--accent)}
+.lvdot.done.on{color:var(--bg)}
+.lvex .ctitle{font-size:28px}
+.setrow.lv{grid-template-columns:16px 1fr 1fr 62px 40px}
+select.rir{padding:10px 6px;border-radius:14px;font-size:15px;text-align:center;background:var(--surface);box-shadow:var(--shadow-sm)}
+.sets.lv{padding-left:0}
+.sets.lv + .setbtns{padding-left:0}

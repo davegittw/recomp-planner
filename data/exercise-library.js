@@ -4,7 +4,7 @@
 // Ids that match the starter set (x-bench, x-squat…) are the same exercise, so nothing is duplicated.
 window.EX_LIBRARY = (function () {
   const X = (id, n, g, p, m, e, s, r, rt, c) => ({ id, n, g, p, m, e, s, r, rt, c });
-  const BB = "Barbell", RK = "Squat rack", DB = "Dumbbells", CB = "Cables", LM = "Landmine", PU = "Pull-up bar", BN = "Bench", BW = "Bodyweight";
+  const BB = "Barbell", RK = "Squat rack", DB = "Dumbbells", CB = "Cables", LM = "Landmine", PU = "Pull-up bar", BN = "Bench", BW = "Bodyweight", BD = "Bands";
   return [
     // ---------- Chest
     X("x-bench", "Barbell bench press", "Chest", "push", ["Chest", "Triceps", "Front delts"], [BB, RK, BN], 4, "6-8", 150, "Shoulder blades pinned back, bar to lower chest, feet driving into the floor."),
@@ -157,5 +157,25 @@ window.EX_LIBRARY = (function () {
     X("x-lm-thruster", "Landmine thruster", "Full body", "legs", ["Quads", "Shoulders"], [LM, BB], 3, "8-10", 90, "Squat with the bar end at your chest, press as you stand."),
     X("x-burpee", "Burpee", "Full body", "legs", ["Full body"], [BW], 3, "10", 60, "Chest to floor, jump at the top."),
     X("x-db-swing", "Dumbbell swing", "Full body", "legs", ["Glutes", "Hamstrings"], [DB], 3, "15", 60, "Hike between the legs, snap the hips, arms just guide it."),
+    // ---------- Resistance bands
+    X("x-band-apart", "Band pull-apart", "Shoulders", "pull", ["Rear delts", "Upper back"], [BD], 3, "15-25", 45, "Arms straight at chest height, pull the band apart until it touches your chest."),
+    X("x-band-face", "Band face pull", "Shoulders", "pull", ["Rear delts", "Upper back"], [BD, RK], 3, "15-20", 45, "Band anchored at head height on the rack, pull to the forehead with elbows high."),
+    X("x-band-lat", "Band lateral raise", "Shoulders", "push", ["Side delts"], [BD], 3, "15-20", 45, "Stand on the band, raise out to the sides, slow on the way down."),
+    X("x-band-dislocate", "Band shoulder dislocate", "Shoulders", "pull", ["Rear delts", "Shoulder mobility"], [BD], 2, "10-15", 30, "Wide grip, arms straight, take the band over your head and back. Good warm-up."),
+    X("x-band-pushup", "Banded push-up", "Chest", "push", ["Chest", "Triceps"], [BD, BW], 3, "8-15", 75, "Band across your upper back, ends under your hands."),
+    X("x-band-row", "Band row", "Back", "pull", ["Upper back", "Lats"], [BD, RK], 3, "12-20", 60, "Band anchored at chest height, row to the ribs and squeeze the shoulder blades."),
+    X("x-band-pulldown", "Band lat pulldown", "Back", "pull", ["Lats"], [BD, PU], 3, "12-20", 60, "Band over the pull-up bar, kneel and pull your elbows to your sides."),
+    X("x-band-assist-pu", "Band-assisted pull-up", "Back", "pull", ["Lats", "Biceps"], [BD, PU], 3, "6-10", 90, "Loop the band over the bar and under one knee or foot."),
+    X("x-band-curl", "Band curl", "Biceps & forearms", "pull", ["Biceps"], [BD], 3, "15-20", 45, "Stand on the band, elbows by your sides."),
+    X("x-band-push", "Band triceps pushdown", "Triceps", "push", ["Triceps"], [BD, PU], 3, "15-20", 45, "Band over the pull-up bar, elbows pinned, push to lockout."),
+    X("x-band-gm", "Band good morning", "Glutes & hamstrings", "legs", ["Hamstrings", "Glutes", "Lower back"], [BD], 3, "12-15", 60, "Stand on the band, loop behind your neck, hinge at the hips with a flat back."),
+    X("x-band-bridge", "Banded glute bridge", "Glutes & hamstrings", "legs", ["Glutes"], [BD, BW], 3, "15-20", 45, "Band above the knees, push the knees out as you lift."),
+    X("x-band-abduct", "Band hip abduction", "Glutes & hamstrings", "legs", ["Side glutes"], [BD], 3, "15-20", 45, "Band above the knees, seated or lying, push the knees apart."),
+    X("x-band-walk", "Band lateral walk", "Glutes & hamstrings", "legs", ["Side glutes"], [BD], 3, "12 steps", 45, "Band above the knees, half squat, small steps sideways; each way."),
+    X("x-band-legcurl", "Band lying leg curl", "Glutes & hamstrings", "legs", ["Hamstrings"], [BD, RK], 3, "12-15", 45, "Band anchored low on the rack, lie face down and curl your heels to your glutes."),
+    X("x-band-pallof", "Band Pallof press", "Core", "core", ["Obliques", "Abs"], [BD, RK], 3, "10-12", 45, "Side-on to the anchor, press out and resist the twist; per side."),
+    // ---------- Lower back (strengthening, not treatment)
+    X("x-bird-dog", "Bird dog", "Core", "core", ["Lower back", "Abs", "Glutes"], [BW], 3, "8-10", 45, "On all fours, reach opposite arm and leg long, hold two seconds, keep the hips level; per side."),
+    X("x-back-ext-floor", "Floor back extension (superman)", "Core", "core", ["Lower back", "Glutes"], [BW], 3, "10-12", 45, "Face down, lift chest and legs slightly, squeeze glutes, small range."),
   ];
 })();

@@ -68,3 +68,7 @@ On first sign-in the app offers an optional starter set: 26 exercises matched to
 Sources: USDA FoodData Central, SR Legacy (public domain), via the TempoLife food dataset (tempolife.app, CC-BY-4.0). A few UK items that USDA doesn't have (halloumi, gnocchi, panko, oven chips, oat drink, light coconut milk) use typical UK pack values, and coffee-shop drinks are estimated from espresso plus semi-skimmed milk. Each item shows where its numbers came from.
 
 These are reference values. For branded products you buy often, add your own food from the label and it will be matched first.
+
+## Workout generator (coach.js)
+
+Runs on the phone with no AI service. It reads a plain-English request (muscles, time, goal, soreness, pain, kit limits, "improve my bench"), works out weekly sets per muscle (main muscles count 1 set, helpers half) and recovery from logged sessions, then picks exercises from the library for your kit. It rotates exercises away from the last session for the same muscles, and learns from what you log and what you swap out. Loads use double progression: weight goes up when every set hits the top of the rep range, and when the rep range changes it converts through an estimated max (Epley, counting RIR). Weight caps come from "Your kit" under Train › Muscles. If you mention pain, it leaves out exercises that load that area and suggests getting it checked; it never prescribes rehab.

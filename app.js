@@ -23,7 +23,7 @@ const firstRep = r => { const m=String(r||"").match(/\d+/); return m?m[0]:""; };
 const SLOTS = [["breakfast","Breakfast"],["lunch","Lunch"],["dinner","Dinner"],["snacks","Snacks"]];
 const PATTERNS = ["push","pull","legs","core"];
 const TAGS = ["push","pull","legs","upper","lower","full","other"];
-const EQUIP = ["Barbell","Squat rack","Dumbbells","Cables","Landmine","Pull-up bar","Bench","Bodyweight"];
+const EQUIP = ["Barbell","Squat rack","Dumbbells","Cables","Landmine","Pull-up bar","Bench","Bands","Bodyweight"];
 const UNITS = ["g","ml","piece","slice","scoop","tbsp","tsp","serving"];
 const ICON = {
   today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><circle cx="12" cy="14.5" r="1.6" fill="currentColor"/></svg>',
@@ -49,7 +49,7 @@ const ui = { tab: lsGet("rp-tab","today"), date: TODAY(), week: monday(TODAY()),
 function loadS(){
   S.ex=Sync.all("exercises"); S.foods=Sync.all("foods"); S.wo=Sync.all("workouts"); S.days=Sync.all("days");
   const st=Sync.get("settings/main")||{};
-  S.settings={ targets:Object.assign({kcal:2400,protein:160,carbs:260,fat:70}, st.targets||{}), split:Object.assign({}, st.split||{}) };
+  S.settings={ targets:Object.assign({kcal:2400,protein:160,carbs:260,fat:70}, st.targets||{}), split:Object.assign({}, st.split||{}), profile:Object.assign({dbMax:25,bbMax:90,dbStep:2,bbStep:2.5,typicalMin:45,equipment:EQUIP.slice()}, st.profile||{}), favEx:st.favEx||[] };
 }
 function bodyFor(path){
   if(path==="settings/main") return clone(S.settings);
@@ -77,6 +77,7 @@ function dayMut(date){ if(!S.days[date]) S.days[date]={ date, meals:[], log:{} }
 function workoutFor(date){
   const d=S.days[date]; const w = d && d.workout!=null ? d.workout : (S.settings.split||{})[wd(date)];
   if(!w || w==="rest") return { id:"rest", w:null, fromSplit: !(d && d.workout!=null) };
+  if(w==="gen") return { id:"gen", w: d&&d.gen ? { id:"gen", name:d.gen.title, tag:"gen", items:d.gen.items||[], gen:true } : null, fromSplit:false };
   return { id:w, w:S.wo[w]||null, fromSplit: !(d && d.workout!=null) };
 }
 function macrosOf(item){ const k = (Number(item.qty)||0)/(Number(item.size)||1);
@@ -134,6 +135,7 @@ function vToday(){
     left:`<button class="iconbtn" data-act="day" data-n="-1" aria-label="Previous day">${ICON.left}</button>`,
     right:`${isToday?"":`<button class="btn ghost" data-act="goToday">Today</button>`}<button class="iconbtn" data-act="day" data-n="1" aria-label="Next day">${ICON.right}</button>` });
   h+=`<div class="stack">`;
+  if(date>=addDays(TODAY(),-1)) h+=coachCard(date);
   if(!Object.keys(S.ex).length && !Object.keys(S.foods).length) h+=welcomeCard();
   const pe=Math.min(100,t.eat.kcal/T.kcal*100), pp=Math.min(100,t.plan.kcal/T.kcal*100);
   const chip=(k,lab,v,tgt)=>`<span class="mchip ${v>tgt*1.08?"over":""}"><i style="background:var(--${k})"></i><b>${n0(v)}</b><span style="opacity:.75">/${n0(tgt)}g</span> ${lab}</span>`;
@@ -161,7 +163,7 @@ function vToday(){
 
   // training
   const woOpts = [`<option value="" ${d.workout==null?"selected":""}>Split: ${(()=>{const s=(S.settings.split||{})[wd(date)]; return s&&s!=="rest"&&S.wo[s]?esc(S.wo[s].name):"Rest";})()}</option>`,
-    `<option value="rest" ${d.workout==="rest"?"selected":""}>Rest day</option>`]
+    `<option value="rest" ${d.workout==="rest"?"selected":""}>Rest day</option>`].concat(d.gen?[`<option value="gen" ${d.workout==="gen"?"selected":""}>Generated: ${esc(d.gen.title)}</option>`]:[])
     .concat(sortedBy(S.wo).map(w=>`<option value="${esc(w.id)}" ${d.workout===w.id?"selected":""}>${esc(w.name)}</option>`)).join("");
   h+=`<section class="sec" aria-label="Training"><div class="sec-h"><h2>Training</h2>
     ${prog?`<span class="pill ${prog.done&&prog.done>=prog.total?"done":""}">${prog.done}/${prog.total} sets</span>`:""}
@@ -170,8 +172,9 @@ function vToday(){
   else if(!wf.w) h+=`<div class="empty">That workout has been deleted. Choose another above.</div>`;
   else{
     if(wf.w.notes) h+=`<div class="small muted">${esc(wf.w.notes)}</div>`;
+    if((wf.w.items||[]).length) h+=`<button class="btn primary block" data-act="liveOpen">${prog&&prog.done?"Continue in workout mode":"Start workout mode"}</button>`;
     for(const it of wf.w.items||[]){
-      const e=S.ex[it.exId]; const rows=(d.log||{})[it.exId]; const n=rows?rows.length:(Number(it.sets)||0);
+      const e=exInfo(it.exId); const rows=(d.log||{})[it.exId]; const n=rows?rows.length:(Number(it.sets)||0);
       const last=lastPerf(it.exId,date);
       h+=`<div class="ex"><div class="ex-h"><div class="plate sm" style="color:${PAT_COL[(e||{}).pattern]||"var(--muted)"}" aria-hidden="true">${ICON.train}</div>
         <div style="min-width:0"><div class="fname">${esc(e?e.name:"Removed exercise")}</div><div class="tgt">${esc(tgtLine(it))}</div>
@@ -227,8 +230,9 @@ function vWeek(){
 
 function vTrain(){
   let h=head({ eyebrow:"Workouts & exercises", title:"Train" })+`<div class="stack" style="gap:16px">
-  <div class="top-row"><div class="seg" style="flex:1" role="tablist"><button class="${ui.trainSeg==="workouts"?"on":""}" data-act="seg" data-v="workouts">Workouts</button><button class="${ui.trainSeg==="exercises"?"on":""}" data-act="seg" data-v="exercises">Exercises</button></div>
-  <button class="btn primary" data-act="${ui.trainSeg==="workouts"?"newWorkout":"newEx"}">+ New</button></div>`;
+  <div class="top-row"><div class="seg" style="flex:1" role="tablist"><button class="${ui.trainSeg==="workouts"?"on":""}" data-act="seg" data-v="workouts">Workouts</button><button class="${ui.trainSeg==="exercises"?"on":""}" data-act="seg" data-v="exercises">Exercises</button><button class="${ui.trainSeg==="muscles"?"on":""}" data-act="seg" data-v="muscles">Muscles</button></div>
+  ${ui.trainSeg==="muscles"?"":`<button class="btn primary" data-act="${ui.trainSeg==="workouts"?"newWorkout":"newEx"}">+ New</button>`}</div>`;
+  if(ui.trainSeg==="muscles") return h+vMuscles()+`</div>`;
   if(ui.trainSeg==="workouts"){
     const ws=sortedBy(S.wo);
     if(!ws.length) h+=`<div class="card"><div class="empty">No workouts yet. Tap “New workout” and pick exercises from your list.</div></div>`;
@@ -252,7 +256,7 @@ function exList(filter, q, act){
 
 /* ---------- exercise library ---------- */
 const LIB_GROUPS=["Chest","Shoulders","Triceps","Back","Biceps & forearms","Quads","Glutes & hamstrings","Calves","Core","Full body"];
-const LIB_EQUIP=["Barbell","Dumbbells","Cables","Landmine","Pull-up bar","Bodyweight"];
+const LIB_EQUIP=["Barbell","Dumbbells","Cables","Landmine","Pull-up bar","Bands","Bodyweight"];
 function libFind(id){ return (window.EX_LIBRARY||[]).find(x=>x.id===id); }
 function libToExercise(x){ return { id:x.id, name:x.n, pattern:x.p, muscles:x.m.slice(), equipment:x.e.slice(), sets:x.s, reps:x.r, rest:x.rt, notes:x.c, lib:true }; }
 function libFilter(s, onlyNew){
@@ -322,6 +326,8 @@ function delBtn(key, act){ return `<button class="btn danger" data-act="${act}">
 let sheetDepth=0, closingTimer=null;
 function renderSheet(){
   const s=top(), el=$("#sheet"), p=$("#panel"), depth=ui.sheets.length, prev=sheetDepth;
+  if(!ui.sheets.some(x=>x.type==="live")) keepAwake(false);
+  p.classList.toggle("tall", !!s && (s.type==="live"||s.type==="gen"));
   sheetDepth=depth;
   if(!s){
     document.body.style.overflow="";
@@ -412,6 +418,11 @@ function renderSheet(){
      <div class="setbtns">${s.id?delBtn("wo:"+s.id,"delWorkout"):""}<span class="spacer"></span><button class="btn primary" data-act="saveWorkout">Save workout</button></div></div>`;
   }
   else if(s.type==="exLib"){ h+=renderLib(s); }
+  else if(s.type==="gen"){ h+=renderGen(s); }
+  else if(s.type==="genSwap"){ h+=renderGenSwap(s); }
+  else if(s.type==="body"){ h+=renderBody(s); }
+  else if(s.type==="live"){ h+=renderLive(s); }
+  else if(s.type==="liveDone"){ h+=renderLiveDone(s); }
   else if(s.type==="ideas"){ h+=renderIdeas(s); }
   else if(s.type==="exPick"){
     h+=sheetHead("Add exercise", `<button class="btn ghost" data-act="newExFromPick">+ New</button>`)+`<div class="sbody">
@@ -619,7 +630,7 @@ function render(){
 /* ---------- actions ---------- */
 function ensureLog(date, exId){
   const d=dayMut(date); if(!d.log[exId]){ const wf=workoutFor(date); const it=(wf.w&&wf.w.items||[]).find(x=>x.exId===exId)||{};
-    d.log[exId]=Array.from({length:Number(it.sets)||0},()=>({w:"",r:"",done:false})); }
+    d.log[exId]=Array.from({length:Number(it.sets)||0},()=>({w:"",r:"",rir:"",done:false})); }
   return d.log[exId];
 }
 function itemFor(date, exId){ const wf=workoutFor(date); return (wf.w&&wf.w.items||[]).find(x=>x.exId===exId)||{}; }
@@ -784,7 +795,7 @@ const IN = {
 };
 document.addEventListener("click", ev=>{ const b=ev.target.closest("[data-act]"); if(!b||b.disabled) return; const f=A[b.dataset.act]; if(f){ ev.preventDefault(); f(b); } });
 ["input","change"].forEach(t=>document.addEventListener(t, ev=>{ const el=ev.target; const k=el.dataset&&el.dataset.in; if(k&&IN[k]){
-  if(t==="change" && ["exQ","foodQ","pickQ","xpQ","libQ","ideaQ","setVal","pickRowQ","rowQ","listPaste","draft","witem","pickEaten","listEaten"].includes(k)) return; IN[k](el, ev); } }));
+  if(t==="change" && ["exQ","foodQ","pickQ","xpQ","libQ","ideaQ","setVal","pickRowQ","rowQ","listPaste","draft","witem","pickEaten","listEaten","genQ","genItem","genSwapQ","prof","liveVal"].includes(k)) return; IN[k](el, ev); } }));
 document.addEventListener("submit", ev=>{
   if(ev.target.id!=="askform") return; ev.preventDefault();
   const el=$("#ask"), q=el.value.trim(); if(!q) { el.focus(); return; }
@@ -796,6 +807,305 @@ document.addEventListener("submit", ev=>{
 });
 document.addEventListener("input", ev=>{ if(ev.target.id==="ask") $("#askgo").classList.toggle("go", !!ev.target.value.trim()); });
 document.addEventListener("keydown", ev=>{ if(ev.key==="Escape"&&top()) popSheet(); });
+
+/* ---------- workout generator, live session, muscle map ---------- */
+const GOAL_TXT={build:"Muscle building", strength:"Strength", condition:"Conditioning", light:"Light"};
+const MIC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>';
+const BODY_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="4.5" r="2.2"/><path d="M7 8.5h10l-1.5 6h-7zM9 14.5 8 21M15 14.5l1 6.5M7 8.5 4.5 14M17 8.5l2.5 5.5"/></svg>';
+ui.gen = { text:"", minutes:null, muscles:[], feel:null };
+ui.live = { restEnd:null, restTotal:0, beeped:true };
+function exInfo(id){ return S.ex[id] || (libFind(id)?libToExercise(libFind(id)):null); }
+function exCue(id){ const x=libFind(id); return x?x.c:((S.ex[id]||{}).notes||""); }
+function profile(){ return S.settings.profile; }
+function genInput(extra){ return Object.assign({ days:S.days, userEx:S.ex, today:ui.date, profile:profile(), favourites:S.settings.favEx||[], dislikes:S.settings.swapOut||{} }, extra||{}); }
+function demoUrl(name){ return "https://www.youtube.com/results?search_query="+encodeURIComponent(name+" exercise how to"); }
+function runGen(seed, text){
+  const R=Coach.parse(text!=null?text:ui.gen.text, {muscles:ui.gen.muscles});
+  if(!R.minutes) R.minutes=ui.gen.minutes||profile().typicalMin||45;
+  const checkin = ui.gen.feel==="tired"?{energy:"low"}:null;
+  const g=Coach.generate(genInput({ request:R, checkin, seed: seed || (ui.date+"|"+R.text+"|"+Date.now()) }));
+  g.feel=ui.gen.feel; return g;
+}
+function genItemToWorkout(it){ return { exId:it.exId, sets:it.sets, reps:String(it.reps||""), weight:it.weight||0, rest:it.rest, rir:it.rir, aim:it.aim||it.note||"", last:it.last||null, timed:!!it.timed }; }
+function genTarget(it){ return `${it.sets} × ${esc(it.reps)}${Number(it.weight)?` · ${n1(it.weight)} kg`:""}${it.rest?` · ${secs(it.rest)} rest`:""}${it.rir!=null&&it.rir!==""?` · RIR ${esc(it.rir)}`:""}`; }
+
+/* Today: the coach card */
+function coachCard(date){
+  const d=day(date), g=d.workout==="gen"&&d.gen;
+  const mins=ui.gen.minutes||profile().typicalMin||45;
+  if(g){
+    const prog=sessionProgress(date)||{done:0,total:0};
+    return `<section class="card coach"><div class="card-h"><span class="label" style="flex:1">${g.finished?"Session done":"Your session"}</span><span class="pill ${prog.done&&prog.done>=prog.total?"done":""}">${prog.done}/${prog.total} sets</span></div>
+      <div><div class="ctitle">${esc(g.title)}</div><div class="small muted">${(g.items||[]).length} exercises · about ${n0(g.est)} min${g.request?` · “${esc(g.request)}”`:""}</div></div>
+      <div class="setbtns"><button class="btn primary" data-act="liveOpen">${g.finished?"Review":prog.done?"Continue":"Start"}</button><button class="btn" data-act="genEditSaved">Edit</button><span class="spacer"></span><button class="btn ghost" data-act="genNew">New session</button></div></section>`;
+  }
+  const sugg=Coach.suggestions(S.days, S.ex, date, profile()).slice(0,3);
+  return `<section class="card coach" aria-label="Workout generator"><label class="ctitle" for="gen-q">What do you want to train today?</label>
+    <form class="genq" id="genform" autocomplete="off" novalidate>
+      <input id="gen-q" type="text" enterkeyhint="go" value="${esc(ui.gen.text)}" data-in="genQ" placeholder="e.g. chest and arms, 45 mins, sore legs">
+      <button type="button" class="iconbtn" data-act="genMic" aria-label="Speak your request">${MIC}</button>
+    </form>
+    <div class="chips">${[30,45,60].map(m=>`<button class="chip ${mins===m?"on":""}" data-act="genMins" data-v="${m}">${m} min</button>`).join("")}
+      <button class="chip ${ui.gen.muscles.length?"on":""}" data-act="bodyPick">${ui.gen.muscles.length?`${ui.gen.muscles.length} muscle${ui.gen.muscles.length===1?"":"s"}`:"Pick muscles"}</button>
+      <button class="chip ${ui.gen.feel==="tired"?"on":""}" data-act="genFeel" data-v="tired">Feeling tired</button></div>
+    ${ui.gen.muscles.length?`<div class="small muted">${esc(Coach.listNames(ui.gen.muscles))} <button class="btn ghost" data-act="genClearMuscles">Clear</button></div>`:""}
+    <button class="btn primary block" data-act="genGo">Build my session</button>
+    <div class="small muted">Or leave it blank and I'll pick what's most recovered: ${sugg.map(s=>`<button class="linkish" data-act="genSuggest" data-v="${esc(s.n)}">${esc(s.n)}</button>`).join(", ")}.</div></section>`;
+}
+
+/* session editor */
+function renderGen(s){
+  const g=s.session;
+  let h=sheetHead(esc(g.title), `<button class="btn ghost" data-act="genRegen">New mix</button>`)+`<div class="sbody">
+    <div class="small muted">${(g.items||[]).length} exercises · about ${n0(g.est)} min · ${esc(GOAL_TXT[g.goal]||"")}${g.request?` · “${esc(g.request)}”`:""}</div>`;
+  if(g.safety) h+=`<div class="banner warnb">${esc(g.safety)}</div>`;
+  for(const w of g.warnings||[]) h+=`<div class="banner warnb">${esc(w.text)}</div>`;
+  if((g.reasons||[]).length) h+=`<details class="why" ${s.whyOpen?"open":""}><summary>Why this session</summary><ul>${g.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></details>`;
+  h+=`<div class="glist">`;
+  (g.items||[]).forEach((it,i)=>{ const open=s.edit===i;
+    h+=`<div class="gitem ${open?"open":""}"><button class="gi-h" data-act="genToggle" data-i="${i}" aria-expanded="${open}"><span class="gi-n">${i+1}</span>
+        <span class="main"><span class="fname">${esc(it.name)}</span><span class="tgt">${genTarget(it)}</span></span>${open?ICON.up:ICON.down}</button>
+      ${it.aim||it.note?`<div class="gi-aim">${esc(it.aim||it.note)}</div>`:""}
+      ${it.last?`<div class="small muted">Last ${fmtDate(it.last.date)} · <span class="num">${esc(it.last.text)}</span></div>`:""}`;
+    if(open){
+      h+=`<div class="grid4">
+        <label class="field"><span class="label">Sets</span><input id="gi-${i}-sets" inputmode="numeric" value="${esc(it.sets)}" data-in="genItem" data-i="${i}" data-k="sets"></label>
+        <label class="field"><span class="label">Reps</span><input id="gi-${i}-reps" value="${esc(it.reps)}" data-in="genItem" data-i="${i}" data-k="reps"></label>
+        <label class="field"><span class="label">Kg</span><input id="gi-${i}-w" inputmode="decimal" value="${esc(it.weight||"")}" placeholder="–" data-in="genItem" data-i="${i}" data-k="weight"></label>
+        <label class="field"><span class="label">Rest s</span><input id="gi-${i}-rest" inputmode="numeric" value="${esc(it.rest)}" data-in="genItem" data-i="${i}" data-k="rest"></label></div>
+        ${it.cue?`<div class="small">${esc(it.cue)} <a href="${demoUrl(it.name)}" target="_blank" rel="noopener">Watch a demo</a></div>`:""}
+        <div class="setbtns"><button class="btn" data-act="genSwap" data-i="${i}">Swap</button>
+          <button class="iconbtn" data-act="genMove" data-i="${i}" data-n="-1" aria-label="Move up" ${i===0?"disabled":""}>${ICON.up}</button>
+          <button class="iconbtn" data-act="genMove" data-i="${i}" data-n="1" aria-label="Move down" ${i===g.items.length-1?"disabled":""}>${ICON.down}</button>
+          <span class="spacer"></span><button class="btn danger" data-act="genRm" data-i="${i}">Remove</button></div>`;
+    }
+    h+=`</div>`; });
+  h+=`</div><button class="btn" data-act="genAdd">+ Add exercise</button>
+    <div class="setbtns">${s.fromDay?`<button class="btn danger" data-act="genDiscard">${ui.confirm==="gendel"?"Tap again to remove":"Remove session"}</button>`:`<button class="btn" data-act="genSave">Save for ${ui.date===TODAY()?"today":fmtDate(s.date)}</button>`}<span class="spacer"></span>
+      <button class="btn primary" data-act="genStart">${s.fromDay?"Save":"Start session"}</button></div>
+    <div class="small muted">Weights come from what you've logged: up when you hit the top of the rep range, held when you didn't, and worked out from your estimated max when the rep range changes. Tap an exercise to change anything.</div></div>`;
+  return h;
+}
+function renderGenSwap(s){
+  const under=ui.sheets[ui.sheets.length-2], g=under.session, it=s.i!=null?g.items[s.i]:null, q=(s.q||"").toLowerCase().trim();
+  let xs;
+  if(it && !q) xs=Coach.alternatives(it.exId, g, genInput());
+  else { const pool=[...Coach.pool(S.ex).values()].filter(x=>!g.items.some(i=>i.exId===x.id) && x.equip.every(e=>profile().equipment.includes(e)));
+    xs=pool.filter(x=>!q||(x.name+" "+x.group+" "+x.pm.map(Coach.nameOf).join(" ")+" "+x.equip.join(" ")).toLowerCase().includes(q))
+      .sort((a,b)=>(b.pm.some(m=>g.targets.includes(m))?1:0)-(a.pm.some(m=>g.targets.includes(m))?1:0)||a.name.localeCompare(b.name)).slice(0,40); }
+  return sheetHead(it?`Swap ${esc(it.name)}`:"Add exercise")+`<div class="sbody">
+    <input type="search" id="gs-q" placeholder="Search exercises or muscles" value="${esc(s.q||"")}" data-in="genSwapQ" autocomplete="off">
+    ${it&&!q?`<div class="small muted">Same muscles, your equipment. Ones you've done before come first.</div>`:""}
+    <div class="list">${xs.map(x=>`<button class="li" data-act="genSwapPick" data-id="${esc(x.id)}"><span class="main"><div class="nm">${esc(x.name)}</div><div class="sub">${esc(x.pm.map(Coach.nameOf).join(", "))} · ${esc(x.equip.join(", ")||"Bodyweight")}</div></span></button>`).join("")||`<div class="empty">Nothing matches.</div>`}</div></div>`;
+}
+
+/* body map */
+const BODY={
+  front:[["frontdelt","ellipse",31,44,6.5,7.5],["frontdelt","ellipse",69,44,6.5,7.5],["sidedelt","ellipse",24.5,48,3.6,7],["sidedelt","ellipse",75.5,48,3.6,7],
+    ["chest","ellipse",42,49,8.5,8],["chest","ellipse",58,49,8.5,8],["biceps","ellipse",24,66,4.6,10],["biceps","ellipse",76,66,4.6,10],
+    ["forearms","ellipse",21.5,90,4,11],["forearms","ellipse",78.5,90,4,11],["obliques","ellipse",37.5,76,4,12],["obliques","ellipse",62.5,76,4,12],
+    ["abs","rect",43,59,14,34,5],["adductors","ellipse",47,116,3,11],["adductors","ellipse",53,116,3,11],
+    ["quads","ellipse",40.5,128,7,21],["quads","ellipse",59.5,128,7,21],["calves","ellipse",41.5,170,5,14],["calves","ellipse",58.5,170,5,14]],
+  back:[["traps","path","M50 29 L63 40 L50 54 L37 40Z"],["reardelt","ellipse",31,45,6.5,7],["reardelt","ellipse",69,45,6.5,7],
+    ["triceps","ellipse",24,66,4.6,10],["triceps","ellipse",76,66,4.6,10],["forearms","ellipse",21.5,90,4,11],["forearms","ellipse",78.5,90,4,11],
+    ["upperback","ellipse",50,57,11,6],["lats","ellipse",39,70,7,13],["lats","ellipse",61,70,7,13],["lowback","rect",44,79,12,15,4],
+    ["glutes","ellipse",42,105,8.5,9],["glutes","ellipse",58,105,8.5,9],["hams","ellipse",41.5,132,7,18],["hams","ellipse",58.5,132,7,18],
+    ["calves","ellipse",41.5,168,5.5,13],["calves","ellipse",58.5,168,5.5,13]]
+};
+function bodySvg(fill, sel){
+  const shape=(p,dx)=>{ const [m,t]=p, a=`data-act="bodyTap" data-m="${m}" fill="${fill(m)}" class="mus ${sel.includes(m)?"sel":""}"`;
+    if(t==="ellipse") return `<ellipse ${a} cx="${p[2]+dx}" cy="${p[3]}" rx="${p[4]}" ry="${p[5]}"/>`;
+    if(t==="rect") return `<rect ${a} x="${p[2]+dx}" y="${p[3]}" width="${p[4]}" height="${p[5]}" rx="${p[6]}"/>`;
+    return `<path ${a} transform="translate(${dx} 0)" d="${p[2]}"/>`; };
+  const sil=dx=>`<g class="sil" transform="translate(${dx} 0)"><circle cx="50" cy="16" r="10"/><rect x="45" y="24" width="10" height="9" rx="3"/><rect x="30" y="34" width="40" height="64" rx="14"/>
+    <rect x="17" y="40" width="13" height="64" rx="6.5"/><rect x="70" y="40" width="13" height="64" rx="6.5"/><rect x="32" y="92" width="36" height="22" rx="10"/>
+    <rect x="32" y="104" width="16" height="84" rx="8"/><rect x="52" y="104" width="16" height="84" rx="8"/></g>`;
+  return `<svg class="bodymap" viewBox="0 0 210 200" role="group" aria-label="Muscle map, front and back">${sil(0)}${BODY.front.map(p=>shape(p,0)).join("")}${sil(110)}${BODY.back.map(p=>shape(p,110)).join("")}
+    <text x="50" y="198" text-anchor="middle">Front</text><text x="160" y="198" text-anchor="middle">Back</text></svg>`;
+}
+function weekFill(W){ return m=>{ const w=W[m]; if(!w||!w.sets) return "var(--sunk)"; const r=w.sets/w.range[0]; return r>=1? (w.sets>w.range[1]?"var(--warn)":"var(--accent)") : `color-mix(in srgb, var(--accent) ${Math.round(25+r*55)}%, var(--sunk))`; }; }
+function renderBody(s){
+  const W=Coach.weekly(S.days, S.ex, ui.date);
+  const fill = m => s.sel.includes(m) ? "var(--ink)" : weekFill(W)(m);
+  return sheetHead("Pick muscles")+`<div class="sbody"><div class="small muted">Tap the muscles you want to train. Colour shows sets in the last 7 days.</div>
+    ${bodySvg(fill, s.sel)}
+    <div class="chips">${Coach.ALL.map(m=>`<button class="chip ${s.sel.includes(m)?"on":""}" data-act="bodyTap" data-m="${m}">${esc(Coach.nameOf(m))}</button>`).join("")}</div>
+    <div class="setbtns"><button class="btn" data-act="bodyClear">Clear</button><span class="spacer"></span><button class="btn primary" data-act="bodyDone">${s.sel.length?`Use ${s.sel.length} muscle${s.sel.length===1?"":"s"}`:"Done"}</button></div></div>`;
+}
+
+/* Train tab: muscles, PBs, equipment */
+function vMuscles(){
+  const W=Coach.weekly(S.days, S.ex, TODAY());
+  let h=`<section class="card"><div class="card-h"><h2>Last 7 days</h2></div>${bodySvg(weekFill(W), [])}
+    <div class="legend small muted"><span><i style="background:color-mix(in srgb, var(--accent) 40%, var(--sunk))"></i>Under</span><span><i style="background:var(--accent)"></i>In range</span><span><i style="background:var(--warn)"></i>Above</span></div>
+    <div class="mlist">`;
+  for(const m of Coach.ALL){ const w=W[m], [lo,hi]=w.range, pct=Math.min(100,w.sets/(hi*1.25)*100);
+    h+=`<div class="mrow"><span class="nm">${esc(Coach.nameOf(m))}</span><span class="mbar"><i class="rng" style="left:${lo/(hi*1.25)*100}%;width:${(hi-lo)/(hi*1.25)*100}%"></i><i class="v ${w.sets>hi?"hi":""}" style="width:${pct}%"></i></span>
+      <span class="num small">${n1(w.sets)}</span><span class="small muted mrec">${w.last?(w.rec<0.6?"recovering":"ready"):"–"}</span></div>`; }
+  h+=`</div><div class="small muted">Sets count fully for the main muscles an exercise works and half for the muscles that help. The shaded band is a useful weekly range for building muscle; “recovering” means trained hard in roughly the last two days.</div></section>`;
+  const PB=Coach.personalBests(S.days, S.ex, TODAY()), pool=Coach.pool(S.ex);
+  const rows=Object.entries(PB).filter(([,p])=>p.bestE||p.bestReps).sort((a,b)=>(b[1].sessions-a[1].sessions)).slice(0,20);
+  h+=`<section class="card"><div class="card-h"><h2>Personal bests</h2></div>${rows.length?`<div class="list">${rows.map(([id,p])=>`<div class="li"><span class="main"><div class="nm">${esc((pool.get(id)||{}).name||id)}</div><div class="sub">${p.sessions} session${p.sessions===1?"":"s"}${p.bestW?` · heaviest ${n1(p.bestW)} kg`:""}</div></span><span class="right" style="color:var(--ink)">${p.bestE?`${n1(p.bestE)} <span class="small muted">kg est. max</span>`:`${p.bestReps} <span class="small muted">reps</span>`}</span></div>`).join("")}</div>
+    <div class="small muted">Estimated max uses the Epley formula, counting the reps you had left in reserve when you logged RIR.</div>`:`<div class="empty">Log a few sessions and your bests show up here.</div>`}</section>`;
+  const P=profile();
+  h+=`<section class="card"><div class="card-h"><h2>Your kit</h2></div><div class="small muted">The generator only picks exercises for kit you have, and won't suggest weights you can't load.</div>
+    <div class="chips">${EQUIP.map(q=>`<button class="chip ${P.equipment.includes(q)?"on":""}" data-act="kitEquip" data-v="${q}">${q}</button>`).join("")}</div>
+    <div class="grid4">
+      <label class="field"><span class="label">Heaviest DB kg</span><input id="pf-db" inputmode="decimal" value="${esc(P.dbMax)}" data-in="prof" data-k="dbMax"></label>
+      <label class="field"><span class="label">DB jumps kg</span><input id="pf-dbs" inputmode="decimal" value="${esc(P.dbStep)}" data-in="prof" data-k="dbStep"></label>
+      <label class="field"><span class="label">Barbell max kg</span><input id="pf-bb" inputmode="decimal" value="${esc(P.bbMax)}" data-in="prof" data-k="bbMax"></label>
+      <label class="field"><span class="label">Bar jumps kg</span><input id="pf-bbs" inputmode="decimal" value="${esc(P.bbStep)}" data-in="prof" data-k="bbStep"></label></div>
+    <div class="field"><span class="label">Usual session length</span><div class="seg">${[30,45,60].map(m=>`<button class="${P.typicalMin===m?"on":""}" data-act="profMins" data-v="${m}">${m} min</button>`).join("")}</div></div></section>`;
+  return h;
+}
+
+/* live session */
+function liveItems(date){ const wf=workoutFor(date); return (wf.w&&wf.w.items)||[]; }
+function liveTitle(date){ const d=day(date), wf=workoutFor(date); return d.workout==="gen"&&d.gen?d.gen.title:(wf.w?wf.w.name:"Workout"); }
+function liveStart(date){ const d=dayMut(date); if(!d.live) { d.live={start:Date.now()}; queueSave("days/"+date); } return d.live; }
+const mmss = ms => { const s=Math.max(0,Math.round(ms/1000)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60); return (h?h+":"+pad(m):m)+":"+pad(s%60); };
+function renderLive(s){
+  const date=s.date, d=day(date), items=liveItems(date), lv=d.live||{start:Date.now()};
+  if(!items.length) return sheetHead("Session")+`<div class="sbody"><div class="empty">No exercises in this session.</div></div>`;
+  s.idx=Math.max(0,Math.min(items.length-1,s.idx||0));
+  const it=items[s.idx], e=exInfo(it.exId)||{name:"Exercise"}, rows=(d.log||{})[it.exId]||Array.from({length:Number(it.sets)||0},()=>({w:"",r:"",rir:"",done:false}));
+  const prog=sessionProgress(date)||{done:0,total:0}, last=lastPerf(it.exId,date), resting=ui.live.restEnd&&ui.live.restEnd>Date.now();
+  const cue=exCue(it.exId), lib=libFind(it.exId);
+  let h=sheetHead(esc(liveTitle(date)), `<span class="lvclock num" id="lv-clock">${lv.end?mmss(lv.end-lv.start):mmss(Date.now()-lv.start)}</span>`)+`<div class="sbody">`;
+  h+=`<div class="restcard ${resting?"":"idle"}" id="lv-restcard"><div class="rc-row"><span class="label" style="flex:1">${resting?"Rest":"Rest timer"}</span><b class="num" id="lv-rest">${resting?mmss(ui.live.restEnd-Date.now()):"–"}</b></div>
+      <div class="rbar"><i id="lv-restbar" style="width:${resting?Math.max(0,(ui.live.restEnd-Date.now())/(ui.live.restTotal*1000)*100):0}%"></i></div>
+      <div class="setbtns">${resting?`<button class="btn" data-act="restAdd" data-n="-15">−15s</button><button class="btn" data-act="restAdd" data-n="30">+30s</button><span class="spacer"></span><button class="btn" data-act="restSkip">Skip</button>`
+        :`<span class="small muted" style="flex:1">Starts when you tick a set</span><button class="btn" data-act="restStart">Start ${secs(it.rest||90)}</button>`}</div></div>`;
+  h+=`<div class="lvdots" role="tablist">${items.map((x,i)=>{ const r=(d.log||{})[x.exId]||[], n=r.length||Number(x.sets)||0, dn=r.filter(y=>y.done).length;
+      return `<button class="lvdot ${i===s.idx?"on":""} ${n&&dn>=n?"done":""}" data-act="liveGo" data-i="${i}" aria-label="Exercise ${i+1}: ${esc((exInfo(x.exId)||{}).name||"")}">${n&&dn>=n?ICON.check:i+1}</button>`; }).join("")}</div>`;
+  h+=`<div class="card lvex"><div class="small muted">Exercise ${s.idx+1} of ${items.length} · ${prog.done}/${prog.total} sets done</div>
+    <div class="ctitle">${esc(e.name)}</div><div class="tgt">${esc(tgtLine(it))}${it.rir!=null&&it.rir!==""?` · stop with ${esc(it.rir)} in reserve`:""}</div>
+    ${it.aim?`<div class="gi-aim">${esc(it.aim)}</div>`:""}
+    ${last?`<div class="small muted">Last ${fmtDate(last.date)} · <span class="num">${esc(setsText(last.rows))}</span></div>`:""}
+    <details class="why"><summary>How to do it</summary><div class="small">${esc(cue||"No notes for this one yet.")}</div><a class="small" href="${demoUrl(e.name)}" target="_blank" rel="noopener">Watch a demo video</a></details>
+    <div class="sets lv">`;
+  rows.forEach((r,i)=>{
+    h+=`<div class="setrow lv"><span class="n">${i+1}</span>
+      <label class="unitwrap"><input id="lw-${i}" inputmode="decimal" autocomplete="off" placeholder="${Number(it.weight)?n1(it.weight):"–"}" value="${esc(r.w??"")}" data-in="liveVal" data-i="${i}" data-k="w" aria-label="Set ${i+1} weight"><span>kg</span></label>
+      <label class="unitwrap"><input id="lr-${i}" inputmode="numeric" autocomplete="off" placeholder="${esc(firstRep(it.reps)||"–")}" value="${esc(r.r??"")}" data-in="liveVal" data-i="${i}" data-k="r" aria-label="Set ${i+1} reps"><span>reps</span></label>
+      <select id="lx-${i}" data-in="liveRir" data-i="${i}" aria-label="Set ${i+1} reps in reserve" class="rir">${["","0","1","2","3","4"].map(v=>`<option value="${v}" ${String(r.rir??"")===v?"selected":""}>${v===""?"RIR":v==="4"?"4+":v}</option>`).join("")}</select>
+      <button class="tick ${r.done?"on":""}" data-act="liveTick" data-i="${i}" aria-label="Mark set ${i+1} done" aria-pressed="${!!r.done}">${ICON.check}</button></div>`; });
+  h+=`</div><div class="setbtns"><button class="btn ghost" data-act="liveAddSet">+ Set</button>${rows.length?`<button class="btn ghost" style="color:var(--muted)" data-act="liveRmSet">Remove last</button>`:""}<span class="spacer"></span>${d.workout==="gen"?`<button class="btn ghost" data-act="liveSwap">Swap</button>`:""}</div>
+    <div class="small muted">RIR is how many more reps you could have done. It's optional, but it makes the next weight suggestion much better.</div></div>
+    <div class="setbtns"><button class="btn" data-act="liveGo" data-i="${s.idx-1}" ${s.idx===0?"disabled":""}>${ICON.left} Previous</button><span class="spacer"></span>
+      ${s.idx<items.length-1?`<button class="btn primary" data-act="liveGo" data-i="${s.idx+1}">Next ${ICON.right}</button>`:`<button class="btn primary" data-act="liveFinish">Finish workout</button>`}</div>
+    ${s.idx<items.length-1?`<button class="btn block" data-act="liveFinish">Finish workout</button>`:""}</div>`;
+  return h;
+}
+function sessionSummary(date){
+  const d=day(date), items=liveItems(date), before=Coach.personalBests(S.days, S.ex, addDays(date,-1)), log=d.log||{};
+  let sets=0, vol=0; const pbs=[];
+  for(const it of items){ const rows=(log[it.exId]||[]).filter(r=>r.done); sets+=rows.length;
+    let best=0, bestReps=0; rows.forEach(r=>{ vol+=num(r.w)*num(r.r); best=Math.max(best, Coach.e1rm(num(r.w), num(r.r), r.rir===""?null:num(r.rir))); if(!num(r.w)) bestReps=Math.max(bestReps,num(r.r)); });
+    const p=before[it.exId], name=(exInfo(it.exId)||{}).name||"";
+    if(best && p && p.bestE && best>p.bestE+0.4) pbs.push(`${name}: ${n1(best)} kg estimated max (was ${n1(p.bestE)})`);
+    else if(bestReps && p && p.bestReps && bestReps>p.bestReps) pbs.push(`${name}: ${bestReps} reps (was ${p.bestReps})`); }
+  return { sets, vol, pbs, mins: d.live&&d.live.end ? Math.round((d.live.end-d.live.start)/60000) : null };
+}
+function renderLiveDone(s){
+  const x=sessionSummary(s.date);
+  return sheetHead("Workout done")+`<div class="sbody"><div class="stats">
+      <div class="stat"><div class="label">Time</div><div class="v">${x.mins!=null?x.mins:"–"}<span class="muted" style="font-size:16px"> min</span></div></div>
+      <div class="stat"><div class="label">Sets</div><div class="v">${x.sets}</div></div>
+      <div class="stat"><div class="label">Volume</div><div class="v">${n0(x.vol)}<span class="muted" style="font-size:16px"> kg</span></div></div></div>
+    ${x.pbs.length?`<div class="card" style="gap:8px"><div class="label">New bests</div>${x.pbs.map(p=>`<div>🏆 ${esc(p)}</div>`).join("")}</div>`:`<div class="small muted">No new bests this time. The next session's weights are already worked out from what you logged.</div>`}
+    <button class="btn primary block" data-act="closeAll">Done</button></div>`;
+}
+/* rest timer, beep, wake lock */
+let audioCtx=null, wakeLock=null;
+function unlockAudio(){ try{ audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==="suspended") audioCtx.resume(); }catch(e){} }
+function beep(){ try{ unlockAudio(); const t=audioCtx.currentTime; [0,0.22,0.44].forEach((o,i)=>{ const os=audioCtx.createOscillator(), g=audioCtx.createGain(); os.frequency.value=i===2?1175:880; g.gain.setValueAtTime(0.0001,t+o); g.gain.exponentialRampToValueAtTime(0.35,t+o+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+o+0.18); os.connect(g).connect(audioCtx.destination); os.start(t+o); os.stop(t+o+0.2); }); }catch(e){} try{ navigator.vibrate&&navigator.vibrate([200,100,200]); }catch(e){} }
+async function keepAwake(on){ try{ if(on&&!wakeLock&&navigator.wakeLock){ wakeLock=await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release",()=>{ wakeLock=null; }); } else if(!on&&wakeLock){ await wakeLock.release(); wakeLock=null; } }catch(e){} }
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible"&&top()&&top().type==="live") keepAwake(true); });
+function startRest(sec){ ui.live.restTotal=sec; ui.live.restEnd=Date.now()+sec*1000; ui.live.beeped=false; }
+setInterval(()=>{
+  const s=top(); if(!s||s.type!=="live") return;
+  const lv=day(s.date).live, c=$("#lv-clock"); if(c&&lv&&!lv.end) c.textContent=mmss(Date.now()-lv.start);
+  if(ui.live.restEnd){ const left=ui.live.restEnd-Date.now(), r=$("#lv-rest"), b=$("#lv-restbar");
+    if(left>0){ if(r) r.textContent=mmss(left); if(b) b.style.width=Math.max(0,left/(ui.live.restTotal*1000)*100)+"%"; }
+    else if(!ui.live.beeped){ ui.live.beeped=true; ui.live.restEnd=null; beep(); toast("Rest done. Next set."); const a=document.activeElement; if(!a||!/INPUT|SELECT|TEXTAREA/.test(a.tagName)) render(); else { if(r) r.textContent="Go"; if(b) b.style.width="0%"; } } }
+}, 500);
+function startVoice(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition, el=$("#gen-q");
+  if(!SR){ if(el) el.focus(); toast("Tap the microphone on your keyboard to speak."); return; }
+  try{ const rec=new SR(); rec.lang="en-GB"; rec.interimResults=true; rec.maxAlternatives=1;
+    const btn=document.querySelector('[data-act="genMic"]'); if(btn) btn.classList.add("listening");
+    rec.onresult=ev=>{ const t=[...ev.results].map(r=>r[0].transcript).join(" "); ui.gen.text=t; const e=$("#gen-q"); if(e) e.value=t; };
+    rec.onerror=()=>{ toast("Couldn't hear that. You can type it, or use the keyboard mic."); };
+    rec.onend=()=>{ const b=document.querySelector('[data-act="genMic"]'); if(b) b.classList.remove("listening"); if(ui.gen.text.trim()) A.genGo(); };
+    rec.start(); }catch(e){ if(el) el.focus(); toast("Tap the microphone on your keyboard to speak."); }
+}
+function saveGenToDay(s){ const d=dayMut(s.date), g=clone(s.session);
+  g.items=g.items.map(it=>Object.assign({}, it, genItemToWorkout(it), {name:it.name, cue:it.cue, pm:it.pm}));
+  d.gen=g; d.workout="gen"; if(ui.gen.feel) d.checkin=Object.assign({}, d.checkin||{}, {energy:ui.gen.feel==="tired"?"low":"ok"});
+  queueSave("days/"+s.date); }
+function recalcEst(g){ g.est=Math.round(5+g.items.reduce((a,it)=>a+(num(it.sets)||0)*(0.75+(num(it.rest)||60)/60),0)); }
+
+Object.assign(A, {
+  genMins(b){ ui.gen.minutes=+b.dataset.v; render(); },
+  genFeel(b){ ui.gen.feel=ui.gen.feel===b.dataset.v?null:b.dataset.v; render(); },
+  genMic(){ unlockAudio(); startVoice(); },
+  genClearMuscles(){ ui.gen.muscles=[]; render(); },
+  genSuggest(b){ ui.gen.text=b.dataset.v; A.genGo(); },
+  genGo(){ unlockAudio(); const el=$("#gen-q"); if(el) ui.gen.text=el.value; if(el) el.blur(); const g=runGen(); pushSheet({type:"gen", date:ui.date, session:g, edit:null, whyOpen:true}); },
+  genNew(){ ui.gen.text=""; ui.gen.muscles=[]; pushSheet({type:"gen", date:ui.date, session:runGen(), edit:null, whyOpen:true, replacing:true}); },
+  genEditSaved(){ const d=day(ui.date); if(!d.gen) return; pushSheet({type:"gen", date:ui.date, session:clone(d.gen), edit:null, fromDay:true}); },
+  genRegen(){ const s=top(); const req=s.session.request; s.session=runGen(ui.date+"|"+Math.random(), s.fromDay?req:null); s.edit=null; toast("New mix of exercises"); render(); },
+  genToggle(b){ const s=top(), i=+b.dataset.i; s.edit=s.edit===i?null:i; render(); },
+  genMove(b){ const s=top(), it=s.session.items, i=+b.dataset.i, j=i+Number(b.dataset.n); if(j<0||j>=it.length) return; [it[i],it[j]]=[it[j],it[i]]; s.edit=j; render(); },
+  genRm(b){ const s=top(); s.session.items.splice(+b.dataset.i,1); s.edit=null; recalcEst(s.session); render(); },
+  genSwap(b){ pushSheet({type:"genSwap", i:+b.dataset.i, q:""}); },
+  genAdd(){ pushSheet({type:"genSwap", i:null, q:""}); },
+  genSwapPick(b){ const s=top(); ui.sheets.pop(); const g=top(), sess=g.session;
+    const slot = s.i!=null ? s.i : sess.items.length;
+    const it=Coach.prescribeSwap(b.dataset.id, s.i!=null?sess.items[s.i]:null, genInput({goal:sess.goal, slot}));
+    if(s.i!=null){ const old=sess.items[s.i].exId; S.settings.swapOut=S.settings.swapOut||{}; S.settings.swapOut[old]=(S.settings.swapOut[old]||0)+1; queueSave("settings/main"); sess.items[s.i]=it; }
+    else sess.items.push(it);
+    recalcEst(sess); g.edit=null; render(); },
+  genSave(){ const s=top(); saveGenToDay(s); ui.sheets=[]; toast("Session saved"); render(); },
+  genStart(){ const s=top(); saveGenToDay(s); if(s.fromDay){ ui.sheets.pop(); toast("Session updated"); render(); return; } ui.sheets=[]; A.liveOpen(); },
+  genDiscard(){ if(ui.confirm!=="gendel"){ ui.confirm="gendel"; render(); return; } const d=dayMut(top().date); delete d.gen; delete d.workout; queueSave("days/"+top().date); ui.sheets=[]; ui.confirm=null; toast("Session removed"); render(); },
+  bodyPick(){ pushSheet({type:"body", sel:ui.gen.muscles.slice()}); },
+  bodyTap(b){ const s=top(); if(!s||s.type!=="body") return; const m=b.dataset.m; s.sel=s.sel.includes(m)?s.sel.filter(x=>x!==m):[...s.sel,m]; render(); },
+  bodyClear(){ top().sel=[]; render(); },
+  bodyDone(){ ui.gen.muscles=top().sel.slice(); popSheet(); },
+  kitEquip(b){ const P=profile(), v=b.dataset.v; P.equipment=P.equipment.includes(v)?P.equipment.filter(x=>x!==v):[...P.equipment,v]; queueSave("settings/main"); render(); },
+  profMins(b){ profile().typicalMin=+b.dataset.v; queueSave("settings/main"); render(); },
+  liveOpen(){ unlockAudio(); const date=ui.date; if(!liveItems(date).length){ toast("Pick a workout for this day first."); return; } liveStart(date);
+    const items=liveItems(date), d=day(date); let idx=items.findIndex(it=>{ const r=(d.log||{})[it.exId]; return !r||r.some(x=>!x.done)||r.length<(Number(it.sets)||0); });
+    pushSheet({type:"live", date, idx:idx<0?0:idx}); keepAwake(true); },
+  liveGo(b){ const s=top(); s.idx=+b.dataset.i; render(); const p=$("#panel"); if(p) p.scrollTop=0; },
+  liveTick(b){ unlockAudio(); const s=top(), it=liveItems(s.date)[s.idx], rows=ensureLog(s.date, it.exId), r=rows[+b.dataset.i];
+    if(!r.done){ if(r.w===""&&Number(it.weight)) r.w=String(it.weight); if(r.r==="") r.r=firstRep(it.reps); }
+    r.done=!r.done; queueSave("days/"+s.date);
+    if(r.done){ const left=rows.filter(x=>!x.done).length; const items=liveItems(s.date);
+      if(left===0 && s.idx<items.length-1){ startRest(Math.max(60, Number(it.rest)||90)); toast("Exercise done. Rest, then next."); s.idx++; }
+      else if(left>0 || s.idx<items.length-1) startRest(Number(it.rest)||90); }
+    render(); },
+  liveAddSet(){ const s=top(), it=liveItems(s.date)[s.idx], rows=ensureLog(s.date,it.exId), prev=rows[rows.length-1]; rows.push({w:prev?prev.w:"",r:"",rir:"",done:false}); queueSave("days/"+s.date); render(); },
+  liveRmSet(){ const s=top(), it=liveItems(s.date)[s.idx], rows=ensureLog(s.date,it.exId); rows.pop(); queueSave("days/"+s.date); render(); },
+  liveSwap(){ const s=top(), d=day(s.date); if(!d.gen) return; pushSheet({type:"gen", date:s.date, session:clone(d.gen), edit:s.idx, fromDay:true}); },
+  restStart(){ const s=top(), it=liveItems(s.date)[s.idx]; unlockAudio(); startRest(Number(it.rest)||90); render(); },
+  restAdd(b){ if(!ui.live.restEnd) return; ui.live.restEnd+=Number(b.dataset.n)*1000; ui.live.restTotal=Math.max(ui.live.restTotal,(ui.live.restEnd-Date.now())/1000); render(); },
+  restSkip(){ ui.live.restEnd=null; ui.live.beeped=true; render(); },
+  liveFinish(){ const s=top(), d=dayMut(s.date); d.live=d.live||{start:Date.now()}; d.live.end=d.live.end||Date.now(); if(d.gen) d.gen.finished=Date.now();
+    queueSave("days/"+s.date); ui.live.restEnd=null; keepAwake(false); ui.sheets[ui.sheets.length-1]={type:"liveDone", date:s.date}; render(); },
+  closeAll(){ ui.sheets=[]; keepAwake(false); render(); }
+});
+Object.assign(IN, {
+  genQ(el){ ui.gen.text=el.value; },
+  genItem(el){ const s=top(), it=s.session.items[+el.dataset.i], k=el.dataset.k; it[k]= k==="reps"?el.value: el.value===""?"":num(el.value); if(k==="sets"||k==="rest") recalcEst(s.session); },
+  genSwapQ(el){ top().q=el.value; render(); },
+  prof(el){ const v=num(el.value); if(v>0){ profile()[el.dataset.k]=v; queueSave("settings/main"); } },
+  liveVal(el){ const s=top(), it=liveItems(s.date)[s.idx], rows=ensureLog(s.date,it.exId); rows[+el.dataset.i][el.dataset.k]=el.value.trim(); queueSave("days/"+s.date); },
+  liveRir(el, ev){ if(ev.type!=="change") return; const s=top(), it=liveItems(s.date)[s.idx], rows=ensureLog(s.date,it.exId); rows[+el.dataset.i].rir=el.value; queueSave("days/"+s.date); }
+});
+document.addEventListener("submit", ev=>{ if(ev.target.id!=="genform") return; ev.preventDefault(); A.genGo(); });
 
 /* ---------- app feel: motion, swipe to dismiss ---------- */
 const reduceMotion=()=>{ try{ return matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){ return false; } };
