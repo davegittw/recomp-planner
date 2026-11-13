@@ -11,7 +11,8 @@ window.Ing = (function () {
     "for into in at room temperature softened melted beaten whisked plus extra more garnish taste season seasoning good quality " +
     "organic free range large medium small big little heaped level rounded generous splash drizzle pinch handful bunch sprig knob " +
     "tin tins can cans jar pack packet pot bag g kg ml l oz lb tbsp tsp cup cups tablespoon tablespoons teaspoon teaspoons " +
-    "clove cloves slice slices rasher rashers fillet fillets piece pieces scoop scoops block ball head stick sticks").split(" "));
+    "clove cloves slice slices rasher rashers fillet fillets piece pieces scoop scoops block ball head stick sticks " +
+    "pint pints half bottle bottles glass glasses mug mugs shot shots flute measure").split(" "));
   function stem(w) {
     if (w.length > 4 && w.endsWith("ies")) return w.slice(0, -3) + "y";
     if (w.length > 4 && w.endsWith("oes")) return w.slice(0, -2);
@@ -111,7 +112,10 @@ window.Ing = (function () {
     [/^(kg|kilos?|kilograms?)\b/, "kg"], [/^(g|gr|grams?|grammes?)\b/, "g"], [/^(ml|millilit(er|re)s?)\b/, "ml"],
     [/^(l|lit(er|re)s?)\b/, "l"], [/^(oz|ounces?)\b/, "oz"], [/^(lbs?|pounds?)\b/, "lb"],
     [/^(tbsps?|tbs|tbls?|tablespoons?|tblsp)\b/, "tbsp"], [/^(tsps?|teaspoons?)\b/, "tsp"], [/^(cups?)\b/, "cup"],
-    [/^(tins?|cans?)\b/, "tin"], [/^(cloves?)\b/, "clove"], [/^(slices?)\b/, "slice"], [/^(rashers?)\b/, "rasher"],
+    [/^(half[- ]pints?|halfs?|halves)\b/, "half pint"], [/^(pints?)\b/, "pint"], [/^(bottles?)\b/, "bottle"], [/^(cans?)\b/, "can"],
+    [/^(large glass(es)?)\b/, "large glass"], [/^(small glass(es)?)\b/, "small glass"], [/^(glass(es)?)\b/, "glass"], [/^(flutes?)\b/, "flute"],
+    [/^(mugs?)\b/, "mug"], [/^(singles?|shots?|measures?)\b(?!\s+cream)/, "single"], [/^(doubles?)\b(?!\s+cream)/, "double"],
+    [/^(tins?)\b/, "tin"], [/^(cloves?)\b/, "clove"], [/^(slices?)\b/, "slice"], [/^(rashers?)\b/, "rasher"],
     [/^(handfuls?)\b/, "handful"], [/^(pinch(es)?)\b/, "pinch"], [/^(scoops?)\b/, "scoop"], [/^(fillets?)\b/, "fillet"],
     [/^(breasts?)\b/, "breast"], [/^(thighs?)\b/, "thigh"], [/^(bunch(es)?)\b/, "bunch"], [/^(packs?|packets?)\b/, "pack"],
     [/^(pots?|tubs?)\b/, "pot"], [/^(jars?)\b/, "jar"], [/^(balls?)\b/, "ball"], [/^(blocks?)\b/, "block"],
@@ -144,8 +148,12 @@ window.Ing = (function () {
   }
   function findPortion(src, word) {
     if (!word) return -1;
+    if (word.includes(" ")) { const i = src.units.findIndex(u => u.l.toLowerCase().startsWith(word)); if (i >= 0) return i; word = word.split(" ").pop(); }
     const w = stem(word);
-    return src.units.findIndex(u => u.l !== "g" && u.l !== "ml" && words(u.l).map(stem).some(t => t === w || t.startsWith(w)));
+    let i = src.units.findIndex(u => u.l !== "g" && u.l !== "ml" && words(u.l).map(stem).some(t => t === w || t.startsWith(w)));
+    if (i < 0 && word === "can") i = findPortion(src, "tin");
+    if (i < 0 && word === "tin") i = findPortion(src, "can");
+    return i;
   }
   function firstCountPortion(src) {
     return src.units.findIndex(u => u.l !== "g" && u.l !== "ml" && !/^(tbsp|tsp|pinch)\b|^cup( grated)?$/.test(u.l) && u.g != null);
@@ -193,8 +201,10 @@ window.Ing = (function () {
   }
   // A sensible single portion to default to (an egg, a slice, a fillet), never a whole block or bag.
   function naturalPortion(src) {
-    return src.units.findIndex(u => u.l !== "g" && u.l !== "ml" && u.g != null && u.g <= 250 &&
-      !/^(tbsp|tsp|pinch)\b|^cup( grated)?$|^(block|bag|pack|tin|carton|pouch|head|ball|jar|pint|whole \()/.test(u.l));
+    const drink = /^(pint|half pint|bottle \(330|can|medium glass|small glass|glass|flute|single|mug|cup \(|regular|mixer)/;
+    return src.units.findIndex(u => u.l !== "g" && u.l !== "ml" && u.g != null &&
+      (drink.test(u.l) ? u.g <= 600 : u.g <= 250) &&
+      !/^(tbsp|tsp|pinch)\b|^cup( grated)?$|^(block|bag|pack|tin|carton|pouch|head|jar|whole \()/.test(u.l));
   }
   // Fit an amount onto a chosen food.
   function applyAmount(src, a) {
